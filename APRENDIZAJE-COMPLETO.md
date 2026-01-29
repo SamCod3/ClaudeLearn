@@ -407,6 +407,25 @@ proyecto/src/api/CLAUDE.md   ← Solo si trabajas en src/api/
 - Documentación detallada (mejor linkear)
 - Descripciones archivo por archivo
 
+## Cómo hacer instrucciones obligatorias
+
+CLAUDE.md es "advisory" - Claude puede ignorar instrucciones vagas. Para que se sigan:
+
+| Técnica | Ejemplo |
+|---------|---------|
+| Usar **OBLIGATORIO** | `**OBLIGATORIO** - usar sistema de rules` |
+| Decir qué NO hacer | `NO usar CLAUDE.md en subdirectorios` |
+| Dar ejemplos concretos | Incluir snippet de código/formato |
+| Link a docs | Referencia oficial para validar |
+
+**Ejemplo efectivo:**
+```markdown
+## Al inicializar (/init)
+**OBLIGATORIO - NO usar CLAUDE.md en subdirectorios. Usar rules:**
+1. CLAUDE.md principal conciso
+2. `.claude/rules/` con frontmatter `paths:`
+```
+
 ---
 
 # 6.1 SISTEMA DE RULES (.claude/rules/)
