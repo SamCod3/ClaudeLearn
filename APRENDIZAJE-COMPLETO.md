@@ -624,9 +624,19 @@ En `~/.claude/settings.json`:
 ## Fórmula del % relativo
 
 ```bash
-AUTOCOMPACT_THRESHOLD=92
+# Umbral = 100% - autocompact_buffer (16.5%) ≈ 84%
+AUTOCOMPACT_THRESHOLD=84
 RELATIVE_PCT=$(echo "scale=0; $USED_PCT * 100 / $AUTOCOMPACT_THRESHOLD" | bc)
 ```
+
+## Cómo calcular el umbral
+
+Ejecuta `/context` y mira:
+```
+⛝ Autocompact buffer: 33.0k tokens (16.5%)
+```
+
+Umbral = 100% - 16.5% = **83.5%** ≈ 84%
 
 ---
 
