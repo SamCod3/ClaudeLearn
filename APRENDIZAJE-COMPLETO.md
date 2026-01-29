@@ -255,7 +255,10 @@ Se dispara antes de compact (manual o auto).
 
 ## Evento PostToolUse para detectar directorios
 
-**Ejemplo: Avisar cuando se crea directorio sin CLAUDE.md**
+**Ejemplo: Avisar cuando se crea directorio sin rule**
+
+Hook que detecta creación de directorios (nivel 1-2) y sugiere crear una rule en `.claude/rules/`.
+
 ```json
 {
   "hooks": {
@@ -273,6 +276,11 @@ Se dispara antes de compact (manual o auto).
   }
 }
 ```
+
+**Comportamiento:**
+- Si no existe `.claude/rules/` → sugiere crear el sistema con link a docs
+- Si existe pero no hay rule para el path → sugiere crear rule con frontmatter `paths:`
+- Ignora: `node_modules/`, `.git/`, `dist/`, `.claude/`, etc.
 
 ---
 
@@ -401,7 +409,54 @@ proyecto/src/api/CLAUDE.md   ← Solo si trabajas en src/api/
 
 ---
 
-# 6. SUBAGENTS
+# 6.1 SISTEMA DE RULES (.claude/rules/)
+
+Sistema modular para instrucciones específicas por path. Alternativa moderna a CLAUDE.md en subdirectorios.
+
+## Estructura
+
+```
+proyecto/.claude/rules/
+├── api.md        → rules para src/api/**
+├── tests.md      → rules para tests/**
+└── frontend.md   → rules para src/components/**
+```
+
+## Formato de rule
+
+```yaml
+---
+paths:
+  - "src/api/**"
+  - "src/services/**"
+---
+# Rules para API
+
+- Usar async/await
+- Validar inputs con zod
+- Retornar errores con códigos HTTP apropiados
+```
+
+## Ventajas vs CLAUDE.md en subdirectorios
+
+| Aspecto | CLAUDE.md subdirs | .claude/rules/ |
+|---------|-------------------|----------------|
+| Ubicación | Dispersos en proyecto | Centralizados |
+| Activación | Por directorio de trabajo | Por globs en `paths:` |
+| Flexibilidad | Un archivo por directorio | Un archivo puede cubrir múltiples paths |
+| Mantenimiento | Difícil de rastrear | Todo en un lugar |
+
+## Cuándo usar cada uno
+
+- **CLAUDE.md raíz**: Instrucciones generales del proyecto (siempre cargado)
+- **.claude/rules/**: Instrucciones específicas por área/feature
+- **CLAUDE.md subdirs**: Legacy, preferir rules
+
+Docs: https://code.claude.com/docs/en/memory#modular-rules-with-clauderules
+
+---
+
+# 7. SUBAGENTS
 
 Asistentes AI especializados que corren en su propio contexto.
 
