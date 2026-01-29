@@ -1,3 +1,7 @@
+---
+paths:
+  - "docs/workflows/**"
+---
 # Workflows y Best Practices
 
 Patrones de uso efectivo de Claude Code.

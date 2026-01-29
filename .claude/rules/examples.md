@@ -1,3 +1,7 @@
+---
+paths:
+  - "examples/**"
+---
 # Ejemplos Prácticos
 
 Código y configuraciones de ejemplo para experimentar.

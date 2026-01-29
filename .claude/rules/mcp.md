@@ -1,3 +1,7 @@
+---
+paths:
+  - "docs/mcp/**"
+---
 # MCP (Model Context Protocol)
 
 Protocolo para conectar Claude Code con herramientas y servicios externos.

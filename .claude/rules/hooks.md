@@ -1,3 +1,7 @@
+---
+paths:
+  - "docs/hooks/**"
+---
 # Hooks
 
 Comandos shell que se ejecutan automáticamente en puntos del ciclo de Claude Code.

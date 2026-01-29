@@ -1,3 +1,7 @@
+---
+paths:
+  - "docs/plugins/**"
+---
 # Plugins y Skills
 
 Extensiones que agregan funcionalidad a Claude Code.

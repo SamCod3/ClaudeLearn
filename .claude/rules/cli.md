@@ -1,3 +1,7 @@
+---
+paths:
+  - "docs/cli/**"
+---
 # CLI Reference
 
 Documentación sobre comandos y flags de Claude Code CLI.

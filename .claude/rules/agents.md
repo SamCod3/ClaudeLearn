@@ -1,3 +1,7 @@
+---
+paths:
+  - "docs/agents/**"
+---
 # Subagents
 
 Agentes especializados que corren en contexto separado via Task tool.
