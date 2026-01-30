@@ -133,10 +133,137 @@ Configuración:
 8. Compact ejecutado, contexto reducido
 ```
 
+## Persistencia de Contexto entre Sesiones
+
+Sistema complementario que guarda contexto al terminar sesión y lo carga al hacer `--resume`.
+
+### Hook SessionEnd - Guardar contexto
+
+Extrae archivos editados y último tema del transcript al salir.
+
+```bash
+# ~/.claude/hooks/session-end-save.sh
+#!/bin/bash
+input=$(cat)
+
+SESSION_ID=$(echo "$input" | jq -r '.session_id // "unknown"')
+TRANSCRIPT_PATH=$(echo "$input" | jq -r '.transcript_path // ""')
+CWD=$(echo "$input" | jq -r '.cwd // ""')
+PROJECT_NAME=$(basename "$CWD")
+
+CONTEXT_DIR="$HOME/.claude/session-context"
+mkdir -p "$CONTEXT_DIR"
+
+if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
+    EDITED_FILES=$(jq -r '
+        select(.type == "assistant")
+        | .message.content[]?
+        | select(.type == "tool_use" and (.name == "Write" or .name == "Edit"))
+        | .input.file_path // empty
+    ' "$TRANSCRIPT_PATH" 2>/dev/null | sort -u | tail -20)
+
+    LAST_USER_MSG=$(jq -r '
+        select(.type == "human")
+        | .message.content // empty
+    ' "$TRANSCRIPT_PATH" 2>/dev/null | tail -1 | head -c 500)
+
+    cat > "$CONTEXT_DIR/${PROJECT_NAME}.json" <<EOF
+{
+    "session_id": "$SESSION_ID",
+    "project": "$PROJECT_NAME",
+    "cwd": "$CWD",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "edited_files": $(echo "$EDITED_FILES" | jq -R -s 'split("\n") | map(select(. != ""))'),
+    "last_topic": $(echo "$LAST_USER_MSG" | jq -R -s '.')
+}
+EOF
+fi
+exit 0
+```
+
+### Hook SessionStart - Cargar contexto
+
+Inyecta contexto de sesión anterior si es reciente (< 24h).
+
+```bash
+# ~/.claude/hooks/session-resume-load.sh
+#!/bin/bash
+input=$(cat)
+
+SOURCE=$(echo "$input" | jq -r '.source // "startup"')
+CWD=$(echo "$input" | jq -r '.cwd // ""')
+PROJECT_NAME=$(basename "$CWD")
+
+if [ "$SOURCE" != "resume" ]; then
+    exit 0
+fi
+
+CONTEXT_FILE="$HOME/.claude/session-context/${PROJECT_NAME}.json"
+
+if [ -f "$CONTEXT_FILE" ]; then
+    TIMESTAMP=$(jq -r '.timestamp // ""' "$CONTEXT_FILE")
+    if [ -n "$TIMESTAMP" ]; then
+        FILE_EPOCH=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$TIMESTAMP" +%s 2>/dev/null)
+        NOW_EPOCH=$(date +%s)
+        AGE_HOURS=$(( (NOW_EPOCH - FILE_EPOCH) / 3600 ))
+
+        if [ "$AGE_HOURS" -lt 24 ]; then
+            EDITED=$(jq -r '.edited_files | join(", ")' "$CONTEXT_FILE")
+            TOPIC=$(jq -r '.last_topic' "$CONTEXT_FILE" | head -c 200)
+
+            cat <<EOF
+{
+    "hookSpecificOutput": {
+        "hookEventName": "SessionStart",
+        "additionalContext": "Contexto de sesion anterior (${AGE_HOURS}h): Archivos editados: ${EDITED}. Ultimo tema: ${TOPIC}"
+    }
+}
+EOF
+        fi
+    fi
+fi
+exit 0
+```
+
+### Configuración
+
+```json
+"SessionEnd": [
+  {
+    "hooks": [
+      { "type": "command", "command": "~/.claude/hooks/session-end-save.sh" }
+    ]
+  }
+],
+"SessionStart": [
+  {
+    "matcher": "resume",
+    "hooks": [
+      { "type": "command", "command": "~/.claude/hooks/session-resume-load.sh" }
+    ]
+  }
+]
+```
+
+### Flujo
+
+```
+Sesión termina → SessionEnd guarda archivos editados
+     ↓
+~/.claude/session-context/{PROYECTO}.json
+     ↓
+claude --resume → SessionStart inyecta contexto
+     ↓
+Claude conoce qué archivos tocaste antes
+```
+
 ## Archivos relacionados
 
 - `~/.claude/statusline.sh` - Script de statusline
 - `~/.claude/hooks/token-warning.sh` - Aviso de tokens
 - `~/.claude/hooks/pre-compact-backup.sh` - Backup antes de compact
+- `~/.claude/hooks/session-end-save.sh` - Guardar contexto al salir
+- `~/.claude/hooks/session-resume-load.sh` - Cargar contexto al resumir
 - `~/.claude/skills/smart-compact/SKILL.md` - Generador de prompts
 - `~/.claude/backups/` - Directorio de backups
+- `~/.claude/session-context/` - Contextos por proyecto
