@@ -83,6 +83,87 @@ Archivos de settings (orden de precedencia):
 
 ---
 
+## Async Hooks
+
+Por defecto, los hooks son **síncronos**: Claude espera a que terminen antes de continuar. Con múltiples hooks, el tiempo se acumula y el workflow se vuelve lento.
+
+### Habilitar async
+
+```json
+{
+  "type": "command",
+  "command": "python log-activity.py",
+  "async": true,
+  "timeout": 30
+}
+```
+
+- `async: true` - El hook corre en background, Claude continúa inmediatamente
+- `timeout` - Segundos máximos antes de matar el proceso (recomendado siempre)
+
+### Cuándo usar cada modo
+
+| Async (background) | Sync (bloquea) |
+|-------------------|----------------|
+| Logging, métricas | Validación en PreToolUse |
+| Notificaciones (Slack, email) | Checks que deben impedir acción |
+| Git commit/push | Permisos que Claude necesita saber |
+| Webhooks, APIs | Cualquier resultado que afecte decisión |
+| Database writes | Code quality gates |
+
+**Regla:** Si Claude necesita el resultado para decidir qué hacer → sync. Si es side effect → async.
+
+### Ejemplo: Logger async
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ~/.claude/hooks/logger.py",
+            "async": true,
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Múltiples hooks async
+
+Varios hooks async en el mismo evento corren **en paralelo**:
+
+```json
+{
+  "hooks": [
+    { "type": "command", "command": "logger.py", "async": true, "timeout": 15 },
+    { "type": "command", "command": "git-commit.sh", "async": true, "timeout": 20 },
+    { "type": "command", "command": "notify.py", "async": true, "timeout": 10 }
+  ]
+}
+```
+
+Sin async: 15 + 20 + 10 = 45s bloqueados.
+Con async: ~0s bloqueados (todos corren en paralelo).
+
+### Timeouts recomendados
+
+| Operación | Timeout |
+|-----------|---------|
+| Logging local | 10-15s |
+| Git local | 15-20s |
+| Git con push | 30-60s |
+| API/webhooks | 10-30s |
+| Database | 15-30s |
+
+---
+
 ## Ejemplos prácticos
 
 ### 1. Logging de comandos Bash
