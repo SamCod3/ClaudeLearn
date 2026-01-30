@@ -19,6 +19,35 @@ Sources:
 
 ---
 
+## Commands vs Skills (fusión v2.1.3)
+
+Desde la versión 2.1.3, commands y skills son funcionalmente equivalentes:
+
+| Aspecto | Commands | Skills |
+|---------|----------|--------|
+| Ubicación | `.claude/commands/archivo.md` | `.claude/skills/nombre/SKILL.md` |
+| Estructura | Archivo único | Directorio (con archivos de soporte) |
+| Nombre del comando | Viene del filename | Viene del frontmatter `name:` |
+| Auto-discovery | Sí | Sí |
+| Frontmatter | Completo | Completo |
+
+**Cuándo usar cada uno:**
+
+| Caso de uso | Usar |
+|-------------|------|
+| Comando simple, sin archivos adicionales | `.claude/commands/` |
+| Workflow con templates, scripts, o configs | `.claude/skills/` |
+| Compartir/distribuir | Plugin |
+
+Ambos soportan:
+- Invocación con `/nombre`
+- Auto-invocación por Claude basada en `description`
+- Variables `$ARGUMENTS`, `$N`
+- Todos los campos de frontmatter
+- Hot reload
+
+---
+
 # SKILLS
 
 ## Qué son
@@ -32,6 +61,10 @@ Archivos SKILL.md que extienden lo que Claude puede hacer. Claude los usa autom�
 | Personal | `~/.claude/skills/<nombre>/SKILL.md` | Todos tus proyectos |
 | Proyecto | `.claude/skills/<nombre>/SKILL.md` | Solo este proyecto |
 | Plugin | `<plugin>/skills/<nombre>/SKILL.md` | Donde plugin está habilitado |
+
+## Hot Reload (desde v2.1.0)
+
+Los cambios en skills y commands se detectan automáticamente. No necesitas reiniciar la sesión de Claude Code para que los cambios tengan efecto.
 
 ## Estructura básica
 
@@ -220,7 +253,7 @@ my-plugin/
 ├── .claude-plugin/
 │   └── plugin.json      # Manifest (requerido)
 ├── skills/              # Skills
-├── commands/            # Comandos (legacy, igual que skills)
+├── commands/            # Comandos simples (archivo único)
 ├── agents/              # Subagents
 ├── hooks/
 │   └── hooks.json       # Hooks
