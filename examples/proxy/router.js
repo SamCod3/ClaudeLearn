@@ -146,19 +146,65 @@ function getSystemText(body) {
   return '';
 }
 
-// Detectar Plan Mode (requiere análisis profundo y diseño)
+// Detectar Plan Mode (busca en system prompt Y en messages)
 function isPlanMode(body) {
+  const pattern = /plan\s*mode\s*(is\s*)?(still\s*)?active/i;
+
+  // Buscar en system prompt
   const systemText = getSystemText(body);
-  return /plan\s*mode\s*(is\s*)?(still\s*)?active/i.test(systemText);
+  if (pattern.test(systemText)) {
+    return true;
+  }
+
+  // Buscar en messages (system-reminders vienen aquí)
+  if (Array.isArray(body.messages)) {
+    for (const msg of body.messages) {
+      const content = msg.content;
+      if (typeof content === 'string' && pattern.test(content)) {
+        return true;
+      }
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block.type === 'text' && block.text && pattern.test(block.text)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
-// Detectar Auto-Accept Mode (sin supervisión humana, requiere precisión)
+// Detectar Auto-Accept Mode (busca en system prompt Y en messages)
+// Nota: "without permission" está en Plan Mode también, así que no lo usamos
 function isAutoAcceptMode(body) {
+  const pattern = /auto[_-]?accept|accept\s*edits?\s*on/i;
+
+  // Buscar en system prompt
   const systemText = getSystemText(body);
-  // Posibles indicadores de auto-accept
-  return /auto[_-]?accept/i.test(systemText) ||
-         /accept\s*edits?\s*on/i.test(systemText) ||
-         /without\s*(asking|permission|confirmation)/i.test(systemText);
+  if (pattern.test(systemText)) {
+    return true;
+  }
+
+  // Buscar en messages
+  if (Array.isArray(body.messages)) {
+    for (const msg of body.messages) {
+      const content = msg.content;
+      if (typeof content === 'string' && pattern.test(content)) {
+        return true;
+      }
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block.type === 'text' && block.text && pattern.test(block.text)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 // Decidir modelo según contexto
@@ -180,6 +226,19 @@ function selectModel(body) {
 
   let tier = 'medium';
   let reason = 'default';
+
+  // DEBUG: Buscar específicamente patrones de Plan Mode
+  const systemText = getSystemText(body);
+  const planModeMatch = systemText.match(/plan.{0,30}mode/gi);
+  if (planModeMatch) {
+    console.log('[Router] DEBUG plan mode patterns found:', planModeMatch);
+  }
+  // Buscar dónde está "Plan mode" en el texto
+  const planModeIndex = systemText.toLowerCase().indexOf('plan mode');
+  if (planModeIndex > -1) {
+    console.log('[Router] DEBUG plan mode context:',
+      systemText.substring(planModeIndex, planModeIndex + 100).replace(/\n/g, '\\n'));
+  }
 
   // Plan Mode: análisis profundo, diseño arquitectónico
   if (isPlanMode(body)) {
