@@ -403,6 +403,24 @@ Mantienen tu contexto limpio:
 | CLAUDE.md muy largo | Podar sin piedad |
 | Exploración sin límites | Usar subagents |
 
+## Workflow: Chris Dunlop Build Loop (35 min)
+
+Framework opinado para builds rápidos y limpios. Ver `docs/workflows/chris-dunlop-workflow.md`.
+
+**Ideas clave:**
+- **Patch diffs only** - Cambios quirúrgicos, máx 3 archivos
+- **CONTEXT.md comprimido** - ≤200 líneas con módulos, APIs, constraints
+- **Loop de 35 min** - Frame(5) → Build(15) → Test(10) → Commit(5)
+- **Stuck Ladder** - Escalado cuando te atascas: narrow → example → reframe → cut
+- **5 agentes especializados** - mvp-planner, ui-stylist, bug-fixer, modular-architect, reviewer-readonly
+
+**Comparación con este setup:**
+- ✅ **CONTEXT.md** → Usamos `.claude/rules/` (más modular)
+- ✅ **Agentes** → Usamos Explore/Plan subagents
+- 🟡 **Adoptable:** Decisions log (ADRs), patch diffs explícitos, stuck ladder
+
+**Fuente:** [Medium - Chris Dunlop](https://medium.com/@chrisdunlop_) (Aug 2025)
+
 ---
 
 # 6. ESTRUCTURA DE CLAUDE.md

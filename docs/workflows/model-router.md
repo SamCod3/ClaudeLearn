@@ -110,6 +110,23 @@ chmod +x ~/.claude/hooks/model-router.sh
 - **No cambia el modelo automaticamente** - Solo recomienda
 - El usuario debe cambiar manualmente con `/model` o reiniciando
 
+## Troubleshooting
+
+### Hook timeout con textos largos
+
+**Síntoma:** Error "UserPromptSubmit hook error" cuando pegas texto muy largo (artículos, docs).
+
+**Causa:** El hook procesaba todo el input con `jq` y `tr` antes de truncar.
+
+**Fix implementado (líneas 8-11):**
+```bash
+# Early exit si input es muy grande (>50KB)
+INPUT_SIZE=$(echo "$input" | wc -c | tr -d ' ')
+[[ $INPUT_SIZE -gt 50000 ]] && exit 0
+```
+
+Cuando detecta input >50KB, el hook hace exit inmediato sin procesar. El proxy sigue funcionando normalmente.
+
 ## Evolucion: Auto-Router Proxy
 
 Para cambio automatico real de modelos, ver `auto-router-proxy.md`:
