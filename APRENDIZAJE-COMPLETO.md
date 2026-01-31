@@ -64,6 +64,30 @@ Muestra checkpoints de la conversación. Opciones al restaurar:
 
 **Resumen:** Tú haces el trabajo cognitivo explorando, luego le das a Claude instrucciones directas como si ya supieras todo desde el principio.
 
+## Sistema /continue-dev
+
+Alternativa a `--resume` cuando `sessions-index.json` está vacío/roto.
+
+**Problema:** `claude --resume` no encuentra sesiones aunque los `.jsonl` existen.
+
+**Solución:**
+1. **Skill `/continue-dev`** - Lista sesiones y carga contexto manualmente
+2. **Hook `SessionEnd`** - Guarda metadata al terminar sesión
+
+**Uso:**
+```bash
+claude
+> /continue-dev
+# Seleccionar sesión → cargar contexto → continuar trabajo
+```
+
+**Archivos:**
+- Skill: `~/.claude/skills/continue-dev/SKILL.md`
+- Hook: `~/.claude/hooks/session-end-save.sh`
+- Context: `~/.claude/session-context/{proyecto}-{session_id}.json`
+
+Ver detalles en: `docs/cli/continue-dev.md`
+
 ---
 
 # 2. CLI TOOLS VS PLUGINS
@@ -711,6 +735,55 @@ Ejecuta `/context` y mira:
 ```
 
 Umbral = 100% - 16.5% = **83.5%** ≈ 84%
+
+---
+
+# 10. AUTO-ROUTER PROXY
+
+Proxy local que cambia automáticamente entre haiku/sonnet/opus según contexto.
+
+## Cómo funciona
+
+```
+Claude Code → localhost:3456 (proxy) → api.anthropic.com
+                    ↓
+            Analiza contexto → Cambia model
+```
+
+## Modelos
+
+| Tier | Modelo | Cuándo |
+|------|--------|--------|
+| LOW | haiku 4.5 | Queries simples, background |
+| MEDIUM | sonnet 4.5 | Default |
+| HIGH | opus 4.5 | Riesgo, arch+debug, >60K tokens |
+
+## Archivos
+
+- Proxy: `~/.claude/proxy/router.js`
+- Servicio: `~/Library/LaunchAgents/com.claude.router.plist`
+- Logs: `~/.claude/proxy/router.log`
+
+## Comandos
+
+```bash
+# Cargar servicio (auto-inicio en login)
+launchctl load ~/Library/LaunchAgents/com.claude.router.plist
+
+# Ver logs
+tail -f ~/.claude/proxy/router.log
+
+# Reiniciar
+launchctl stop com.claude.router && launchctl start com.claude.router
+```
+
+## Alias en ~/.zshrc
+
+```bash
+alias claude="ANTHROPIC_BASE_URL=http://localhost:3456 command claude"
+```
+
+Ver detalles en: `docs/workflows/auto-router-proxy.md`
 
 ---
 

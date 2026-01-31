@@ -107,11 +107,15 @@ chmod +x ~/.claude/hooks/model-router.sh
 
 ## Limitaciones
 
-- **No cambia el modelo automaticamente** - Claude Code vanilla no permite esto
-- Solo es informativo/preventivo
-- El usuario debe cambiar manualmente:
-  - Reiniciar con `claude --model opus`
-  - O usar `/model opus` dentro de la sesion (si disponible)
+- **No cambia el modelo automaticamente** - Solo recomienda
+- El usuario debe cambiar manualmente con `/model` o reiniciando
+
+## Evolucion: Auto-Router Proxy
+
+Para cambio automatico real de modelos, ver `auto-router-proxy.md`:
+- Proxy en `~/.claude/proxy/router.js`
+- Cambia el modelo en la request antes de enviar a Anthropic
+- Servicio launchd para auto-inicio
 
 ## Personalizacion
 
