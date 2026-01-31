@@ -249,6 +249,11 @@ function selectModel(body) {
     return { model: originalModel, tier: 'code', reason: 'non-interactive mode' };
   }
 
+  // Background tasks: siempre haiku (antes del override para ignorarlo)
+  if (isBackgroundTask(body)) {
+    return { model: CONFIG.models.explore, tier: 'explore', reason: 'background task' };
+  }
+
   // Override manual: <!-- model: opus/sonnet/haiku -->
   const overrideTier = parseModelOverride(lastMessage);
   if (overrideTier) {
@@ -272,11 +277,6 @@ function selectModel(body) {
   // Auto-Accept: sin supervisión humana, requiere máxima precisión
   if (isAutoAcceptMode(body)) {
     return { model: CONFIG.models.reason, tier: 'reason', reason: 'auto-accept mode' };
-  }
-
-  // Background tasks: operaciones internas de bajo costo
-  if (isBackgroundTask(body)) {
-    return { model: CONFIG.models.explore, tier: 'explore', reason: 'background task' };
   }
 
   if (tokens > CONFIG.longContextThreshold) {
