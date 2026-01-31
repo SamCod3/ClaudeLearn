@@ -146,7 +146,7 @@ function getSystemText(body) {
   return '';
 }
 
-// Detectar Plan Mode (busca en system prompt Y en messages)
+// Detectar Plan Mode (busca en system prompt Y en últimos messages)
 function isPlanMode(body) {
   const pattern = /plan\s*mode\s*(is\s*)?(still\s*)?active/i;
 
@@ -156,18 +156,17 @@ function isPlanMode(body) {
     return true;
   }
 
-  // Buscar en messages (system-reminders vienen aquí)
-  if (Array.isArray(body.messages)) {
-    for (const msg of body.messages) {
-      const content = msg.content;
-      if (typeof content === 'string' && pattern.test(content)) {
-        return true;
-      }
-      if (Array.isArray(content)) {
-        for (const block of content) {
-          if (block.type === 'text' && block.text && pattern.test(block.text)) {
-            return true;
-          }
+  // Buscar solo en el último mensaje (el indicador de modo actual)
+  if (Array.isArray(body.messages) && body.messages.length > 0) {
+    const lastMsg = body.messages[body.messages.length - 1];
+    const content = lastMsg.content;
+    if (typeof content === 'string' && pattern.test(content)) {
+      return true;
+    }
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block.type === 'text' && block.text && pattern.test(block.text)) {
+          return true;
         }
       }
     }
@@ -176,7 +175,7 @@ function isPlanMode(body) {
   return false;
 }
 
-// Detectar Auto-Accept Mode (busca en system prompt Y en messages)
+// Detectar Auto-Accept Mode (busca en system prompt Y en último mensaje)
 // Nota: "without permission" está en Plan Mode también, así que no lo usamos
 function isAutoAcceptMode(body) {
   const pattern = /auto[_-]?accept|accept\s*edits?\s*on/i;
@@ -187,18 +186,17 @@ function isAutoAcceptMode(body) {
     return true;
   }
 
-  // Buscar en messages
-  if (Array.isArray(body.messages)) {
-    for (const msg of body.messages) {
-      const content = msg.content;
-      if (typeof content === 'string' && pattern.test(content)) {
-        return true;
-      }
-      if (Array.isArray(content)) {
-        for (const block of content) {
-          if (block.type === 'text' && block.text && pattern.test(block.text)) {
-            return true;
-          }
+  // Buscar solo en el último mensaje (el indicador de modo actual)
+  if (Array.isArray(body.messages) && body.messages.length > 0) {
+    const lastMsg = body.messages[body.messages.length - 1];
+    const content = lastMsg.content;
+    if (typeof content === 'string' && pattern.test(content)) {
+      return true;
+    }
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block.type === 'text' && block.text && pattern.test(block.text)) {
+          return true;
         }
       }
     }
