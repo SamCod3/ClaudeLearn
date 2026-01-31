@@ -206,17 +206,6 @@ function isAutoAcceptMode(body) {
   return false;
 }
 
-// Detectar Thinking Mode (razonamiento profundo)
-function isThinkingMode(body) {
-  // Buscar campo thinking en el body del request
-  if (body.thinking && body.thinking.type) {
-    const thinkingType = body.thinking.type;
-    // Thinking activo si type es "enabled" o "interleaved"
-    return thinkingType === 'enabled' || thinkingType === 'interleaved';
-  }
-  return false;
-}
-
 // Decidir modelo según contexto
 function selectModel(body) {
   const messages = body.messages || [];
@@ -251,11 +240,6 @@ function selectModel(body) {
   // Plan Mode: análisis profundo, diseño arquitectónico
   if (isPlanMode(body)) {
     return { model: CONFIG.models.high, tier: 'high', reason: 'plan mode' };
-  }
-
-  // Thinking Mode: razonamiento profundo activo
-  if (isThinkingMode(body)) {
-    return { model: CONFIG.models.high, tier: 'high', reason: 'thinking mode' };
   }
 
   // Auto-Accept: sin supervisión humana, requiere máxima precisión
