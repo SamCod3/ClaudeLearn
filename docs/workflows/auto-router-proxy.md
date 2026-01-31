@@ -124,6 +124,22 @@ Forzar un modelo específico para una request usando `#modelo`:
 
 **Nota:** El override no afecta a background tasks (siempre usan haiku).
 
+## Variables de entorno
+
+| Variable | Efecto |
+|----------|--------|
+| `NON_INTERACTIVE_MODE=true` | Deshabilita routing (usa modelo original) |
+| `ROUTER_DEBUG=true` | Activa logs de routing (por defecto solo errores) |
+
+**Ejemplo:**
+```bash
+# Sin routing (CI/CD)
+NON_INTERACTIVE_MODE=true ANTHROPIC_BASE_URL=http://localhost:3456 claude
+
+# Con logs de debug
+ROUTER_DEBUG=true ANTHROPIC_BASE_URL=http://localhost:3456 claude
+```
+
 ## NON_INTERACTIVE_MODE
 
 Variable de entorno para **deshabilitar routing automático**. Útil para:
