@@ -5,6 +5,7 @@ Implementaciones de referencia de hooks personalizados.
 ## Archivos
 
 - `model-router.sh` - Hook UserPromptSubmit que analiza complejidad y recomienda modelo
+- `token-warning.sh` - Hook UserPromptSubmit que avisa cuando el contexto supera 75%
 
 ## Contexto
 
@@ -27,6 +28,19 @@ chmod +x ~/.claude/hooks/model-router.sh
 
 # Configurar en ~/.claude/settings.json
 # Ver docs/workflows/model-router.md para detalles
+```
+
+### token-warning.sh
+
+```bash
+# Copiar a ubicación activa
+cp examples/hooks/token-warning.sh ~/.claude/hooks/
+
+# Dar permisos de ejecución
+chmod +x ~/.claude/hooks/token-warning.sh
+
+# Configurar en ~/.claude/settings.json
+# Ver docs/workflows/model-router.md para detalles (usa el mismo patrón)
 ```
 
 ## Modificaciones

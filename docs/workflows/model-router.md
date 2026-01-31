@@ -116,16 +116,27 @@ chmod +x ~/.claude/hooks/model-router.sh
 
 **Síntoma:** Error "UserPromptSubmit hook error" cuando pegas texto muy largo (artículos, docs).
 
-**Causa:** El hook procesaba todo el input con `jq` y `tr` antes de truncar.
+**Causa:** Los hooks UserPromptSubmit se ejecutan secuencialmente. Si cualquier hook procesa todo el input con `jq` sin límite, puede causar timeout/error.
 
-**Fix implementado (líneas 8-11):**
+**Fix implementado:** TODOS los hooks UserPromptSubmit necesitan early exit (líneas 5-8):
+
 ```bash
 # Early exit si input es muy grande (>50KB)
 INPUT_SIZE=$(echo "$input" | wc -c | tr -d ' ')
 [[ $INPUT_SIZE -gt 50000 ]] && exit 0
 ```
 
-Cuando detecta input >50KB, el hook hace exit inmediato sin procesar. El proxy sigue funcionando normalmente.
+**Hooks afectados:**
+- ✓ `model-router.sh` - Tiene protección desde commit f367350
+- ✓ `token-warning.sh` - Protección agregada (critical fix)
+
+**Por qué es crítico:** Los hooks corren en orden:
+1. `token-warning.sh` (primero)
+2. `model-router.sh` (segundo)
+
+Si el primer hook falla, el segundo nunca se ejecuta. Ambos deben tener protección independiente.
+
+Cuando detectan input >50KB, los hooks hacen exit inmediato sin procesar. Claude sigue funcionando normalmente.
 
 ## Evolucion: Auto-Router Proxy
 
