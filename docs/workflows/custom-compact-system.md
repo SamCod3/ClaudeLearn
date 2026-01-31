@@ -163,64 +163,32 @@ if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
     ' "$TRANSCRIPT_PATH" 2>/dev/null | sort -u | tail -20)
 
     LAST_USER_MSG=$(jq -r '
-        select(.type == "human")
-        | .message.content // empty
+        select(.type == "user" and (.message.content | type) == "string")
+        | .message.content
     ' "$TRANSCRIPT_PATH" 2>/dev/null | tail -1 | head -c 500)
 
-    cat > "$CONTEXT_DIR/${PROJECT_NAME}.json" <<EOF
-{
-    "session_id": "$SESSION_ID",
-    "project": "$PROJECT_NAME",
-    "cwd": "$CWD",
-    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-    "edited_files": $(echo "$EDITED_FILES" | jq -R -s 'split("\n") | map(select(. != ""))'),
-    "last_topic": $(echo "$LAST_USER_MSG" | jq -R -s '.')
-}
-EOF
-fi
-exit 0
-```
+    TIMESTAMP_START=$(jq -r '
+        select(.type == "user")
+        | .timestamp // empty
+    ' "$TRANSCRIPT_PATH" 2>/dev/null | head -1)
 
-### Hook SessionStart - Cargar contexto
-
-Inyecta contexto de sesión anterior si es reciente (< 24h).
-
-```bash
-# ~/.claude/hooks/session-resume-load.sh
-#!/bin/bash
-input=$(cat)
-
-SOURCE=$(echo "$input" | jq -r '.source // "startup"')
-CWD=$(echo "$input" | jq -r '.cwd // ""')
-PROJECT_NAME=$(basename "$CWD")
-
-if [ "$SOURCE" != "resume" ]; then
-    exit 0
-fi
-
-CONTEXT_FILE="$HOME/.claude/session-context/${PROJECT_NAME}.json"
-
-if [ -f "$CONTEXT_FILE" ]; then
-    TIMESTAMP=$(jq -r '.timestamp // ""' "$CONTEXT_FILE")
-    if [ -n "$TIMESTAMP" ]; then
-        FILE_EPOCH=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$TIMESTAMP" +%s 2>/dev/null)
-        NOW_EPOCH=$(date +%s)
-        AGE_HOURS=$(( (NOW_EPOCH - FILE_EPOCH) / 3600 ))
-
-        if [ "$AGE_HOURS" -lt 24 ]; then
-            EDITED=$(jq -r '.edited_files | join(", ")' "$CONTEXT_FILE")
-            TOPIC=$(jq -r '.last_topic' "$CONTEXT_FILE" | head -c 200)
-
-            cat <<EOF
-{
-    "hookSpecificOutput": {
-        "hookEventName": "SessionStart",
-        "additionalContext": "Contexto de sesion anterior (${AGE_HOURS}h): Archivos editados: ${EDITED}. Ultimo tema: ${TOPIC}"
-    }
-}
-EOF
-        fi
-    fi
+    jq -n \
+        --arg session_id "$SESSION_ID" \
+        --arg project "$PROJECT_NAME" \
+        --arg cwd "$CWD" \
+        --arg timestamp_start "$TIMESTAMP_START" \
+        --arg timestamp_end "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg last_topic "$LAST_USER_MSG" \
+        --argjson edited_files "$(echo "$EDITED_FILES" | jq -R -s 'split("\n") | map(select(. != ""))')" \
+        '{
+            session_id: $session_id,
+            project: $project,
+            cwd: $cwd,
+            timestamp_start: $timestamp_start,
+            timestamp_end: $timestamp_end,
+            edited_files: $edited_files,
+            last_topic: $last_topic
+        }' > "$CONTEXT_DIR/${PROJECT_NAME}-${SESSION_ID}.json"
 fi
 exit 0
 ```
@@ -234,25 +202,22 @@ exit 0
       { "type": "command", "command": "~/.claude/hooks/session-end-save.sh" }
     ]
   }
-],
-"SessionStart": [
-  {
-    "matcher": "resume",
-    "hooks": [
-      { "type": "command", "command": "~/.claude/hooks/session-resume-load.sh" }
-    ]
-  }
 ]
 ```
+
+### Cargar contexto - Skill /continue-dev
+
+En lugar de hook SessionStart, se usa el skill `/continue-dev` para cargar contexto manualmente.
+Ver [docs/cli/continue-dev.md](../cli/continue-dev.md) para detalles.
 
 ### Flujo
 
 ```
 Sesión termina → SessionEnd guarda archivos editados
      ↓
-~/.claude/session-context/{PROYECTO}.json
+~/.claude/session-context/{PROYECTO}-{SESSION_ID}.json
      ↓
-claude --resume → SessionStart inyecta contexto
+Nueva sesión → /continue-dev para cargar contexto
      ↓
 Claude conoce qué archivos tocaste antes
 ```
@@ -263,7 +228,7 @@ Claude conoce qué archivos tocaste antes
 - `~/.claude/hooks/token-warning.sh` - Aviso de tokens
 - `~/.claude/hooks/pre-compact-backup.sh` - Backup antes de compact
 - `~/.claude/hooks/session-end-save.sh` - Guardar contexto al salir
-- `~/.claude/hooks/session-resume-load.sh` - Cargar contexto al resumir
 - `~/.claude/skills/smart-compact/SKILL.md` - Generador de prompts
+- `~/.claude/skills/continue-dev/SKILL.md` - Cargar contexto de sesión anterior
 - `~/.claude/backups/` - Directorio de backups
 - `~/.claude/session-context/` - Contextos por proyecto

@@ -43,12 +43,6 @@ Al terminar sesión guarda en `~/.claude/session-context/{proyecto}-{session_id}
 - `edited_files`
 - `last_topic`
 
-### 3. Hook `session-resume-load.sh` (complemento)
-
-**Ubicación:** `~/.claude/hooks/session-resume-load.sh`
-
-Si `--resume` funciona, este hook añade contexto adicional del session-context.
-
 ## Ubicaciones de datos
 
 | Dato | Ubicación |
