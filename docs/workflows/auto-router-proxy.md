@@ -62,15 +62,15 @@ Si deriváramos con fechas específicas (ej: `claude-sonnet-4-5-20251101`), obte
 
 El proxy detecta automáticamente el modo de Claude Code:
 
-| Modo | Atajo | Modelo | Razón |
-|------|-------|--------|-------|
-| **Plan Mode** | `Shift+Tab` x2 | Opus | Análisis profundo, diseño |
+| Modo | Activación | Modelo | Razón |
+|------|------------|--------|-------|
+| **Plan Mode** | `Shift+Tab` x2 o Claude usa `EnterPlanMode` | Opus | Análisis profundo, diseño |
 | **Auto-Accept** | `Shift+Tab` | Opus | Sin revisión humana |
 | **Normal** | - | Sonnet | Balance costo/calidad |
 
 ### Cómo funciona
 
-El proxy analiza el **system prompt** que Claude Code envía:
+**1. Detección en request:** El proxy busca en el último mensaje:
 
 ```javascript
 // Plan Mode
@@ -80,11 +80,21 @@ El proxy analiza el **system prompt** que Claude Code envía:
 /auto[_-]?accept/i || /accept\s*edits?\s*on/i
 ```
 
+**2. Detección en respuesta (SSE):** El proxy también intercepta la respuesta streaming para detectar cuando Claude usa `EnterPlanMode`:
+
+```javascript
+// Busca en chunks SSE:
+text.includes('"name":"EnterPlanMode"')
+```
+
+Esto asegura que el siguiente request use Opus, incluso antes de que el usuario escriba algo.
+
 ### Ejemplo en logs
 
 ```
+[Router] Detected EnterPlanMode in response → next request will use Opus
+[Router] claude-opus-4-5 → claude-opus-4-5 (entering plan mode (from response))
 [Router] claude-opus-4-5 → claude-opus-4-5 (plan mode)
-[Router] claude-opus-4-5 → claude-opus-4-5 (auto-accept mode)
 [Router] claude-opus-4-5 → claude-sonnet-4-5 (default)
 ```
 
