@@ -131,6 +131,36 @@ function isBackgroundTask(body) {
   return false;
 }
 
+// Extraer texto del system prompt (puede ser string o array)
+function getSystemText(body) {
+  const system = body.system;
+  if (typeof system === 'string') {
+    return system;
+  }
+  if (Array.isArray(system)) {
+    return system
+      .filter(block => block.type === 'text' && block.text)
+      .map(block => block.text)
+      .join(' ');
+  }
+  return '';
+}
+
+// Detectar Plan Mode (requiere análisis profundo y diseño)
+function isPlanMode(body) {
+  const systemText = getSystemText(body);
+  return /plan\s*mode\s*(is\s*)?(still\s*)?active/i.test(systemText);
+}
+
+// Detectar Auto-Accept Mode (sin supervisión humana, requiere precisión)
+function isAutoAcceptMode(body) {
+  const systemText = getSystemText(body);
+  // Posibles indicadores de auto-accept
+  return /auto[_-]?accept/i.test(systemText) ||
+         /accept\s*edits?\s*on/i.test(systemText) ||
+         /without\s*(asking|permission|confirmation)/i.test(systemText);
+}
+
 // Decidir modelo según contexto
 function selectModel(body) {
   const messages = body.messages || [];
@@ -151,6 +181,17 @@ function selectModel(body) {
   let tier = 'medium';
   let reason = 'default';
 
+  // Plan Mode: análisis profundo, diseño arquitectónico
+  if (isPlanMode(body)) {
+    return { model: CONFIG.models.high, tier: 'high', reason: 'plan mode' };
+  }
+
+  // Auto-Accept: sin supervisión humana, requiere máxima precisión
+  if (isAutoAcceptMode(body)) {
+    return { model: CONFIG.models.high, tier: 'high', reason: 'auto-accept mode' };
+  }
+
+  // Background tasks: operaciones internas de bajo costo
   if (isBackgroundTask(body)) {
     return { model: CONFIG.models.low, tier: 'low', reason: 'background task' };
   }

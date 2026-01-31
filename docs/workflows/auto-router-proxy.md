@@ -48,12 +48,44 @@ Si deriváramos con fechas específicas (ej: `claude-sonnet-4-5-20251101`), obte
 ## Reglas de routing
 
 ```
-1. Background/subagent task           → haiku
-2. >60K tokens                        → opus
-3. Keywords riesgo (produccion, etc)  → opus
-4. Arquitectura + debugging           → opus
-5. Query simple (<50 chars)           → haiku
-6. Default                            → sonnet
+1. Plan Mode activo                   → opus  (diseño arquitectónico)
+2. Auto-Accept Mode activo            → opus  (sin supervisión, requiere precisión)
+3. Background/subagent task           → haiku (operaciones internas)
+4. >60K tokens                        → opus  (contexto largo)
+5. Keywords riesgo (produccion, etc)  → opus
+6. Arquitectura + debugging           → opus
+7. Query simple (<50 chars)           → haiku
+8. Default                            → sonnet
+```
+
+## Detección de modos
+
+El proxy detecta automáticamente el modo de Claude Code:
+
+| Modo | Atajo | Modelo | Razón |
+|------|-------|--------|-------|
+| **Plan Mode** | `Shift+Tab` x2 | Opus | Análisis profundo, diseño |
+| **Auto-Accept** | `Shift+Tab` | Opus | Sin revisión humana |
+| **Normal** | - | Sonnet | Balance costo/calidad |
+
+### Cómo funciona
+
+El proxy analiza el **system prompt** que Claude Code envía:
+
+```javascript
+// Plan Mode
+/plan\s*mode\s*(is\s*)?(still\s*)?active/i
+
+// Auto-Accept Mode
+/auto[_-]?accept/i || /accept\s*edits?\s*on/i
+```
+
+### Ejemplo en logs
+
+```
+[Router] claude-opus-4-5 → claude-opus-4-5 (plan mode)
+[Router] claude-opus-4-5 → claude-opus-4-5 (auto-accept mode)
+[Router] claude-opus-4-5 → claude-sonnet-4-5 (default)
 ```
 
 ## Archivos
