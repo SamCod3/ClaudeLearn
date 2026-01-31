@@ -104,16 +104,24 @@ Esto asegura que el siguiente request use Opus, incluso antes de que el usuario 
 
 ## Thinking Mode
 
-El proxy detecta cuando Claude está en modo de razonamiento profundo (`thinking_mode`):
+El proxy detecta cuando Claude está en modo de razonamiento profundo buscando el campo `thinking` en el body del request:
 
 ```javascript
-// Busca en system prompt
-/thinking_mode.*interleaved|thinking_mode.*enabled/i
+// Busca en body.thinking.type
+body.thinking.type === 'enabled' || body.thinking.type === 'interleaved'
+```
+
+**Formato del campo thinking:**
+```json
+{
+  "budget_tokens": 31999,
+  "type": "enabled"
+}
 ```
 
 **Cuándo se activa:**
 - Claude está configurado para usar `<thinking>` blocks
-- Útil para razonamiento complejo que requiere análisis profundo
+- El request incluye `thinking.type: "enabled"` o `"interleaved"`
 
 **Logs:**
 ```

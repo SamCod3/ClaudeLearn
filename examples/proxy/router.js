@@ -208,9 +208,13 @@ function isAutoAcceptMode(body) {
 
 // Detectar Thinking Mode (razonamiento profundo)
 function isThinkingMode(body) {
-  const systemText = getSystemText(body);
-  // Buscar thinking_mode activo (interleaved o enabled)
-  return /thinking_mode.*interleaved|thinking_mode.*enabled/i.test(systemText);
+  // Buscar campo thinking en el body del request
+  if (body.thinking && body.thinking.type) {
+    const thinkingType = body.thinking.type;
+    // Thinking activo si type es "enabled" o "interleaved"
+    return thinkingType === 'enabled' || thinkingType === 'interleaved';
+  }
+  return false;
 }
 
 // Decidir modelo según contexto
