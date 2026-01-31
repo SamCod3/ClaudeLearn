@@ -4,20 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Purpose
 
-Repositorio de aprendizaje de Claude Code. Cada subdirectorio tiene su propio CLAUDE.md con contexto específico del tema.
+Repositorio personal de aprendizaje sobre Claude Code. Documenta hooks, skills, MCP, agents, workflows y best practices.
+
+## Key Files
+
+- **APRENDIZAJE-COMPLETO.md** - Consolidado con todo el conocimiento (referencia principal)
+- **docs/** - Documentación detallada por tema
+- **.claude/rules/** - Instrucciones específicas por área (ver frontmatter `paths:`)
 
 ## Structure
 
 ```
 docs/
-├── cli/        ← Comandos y flags CLI
-├── hooks/      ← Hooks y automatización
+├── cli/        ← Comandos, session management, LSP
+├── hooks/      ← Eventos y automatización
 ├── mcp/        ← Model Context Protocol
 ├── agents/     ← Subagentes y Task tool
 ├── plugins/    ← Plugins y skills
 └── workflows/  ← Best practices y patrones
-
-examples/       ← Código y configs de ejemplo
 ```
 
 ## Resources
