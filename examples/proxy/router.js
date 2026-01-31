@@ -82,16 +82,10 @@ function detectModelFamily(modelId) {
   }
 
   if (family) {
-    log(`Familia detectada: ${family}`);
-    log(`Modelos:`);
-    console.log(`  EXPLORE → ${CONFIG.models.explore}`);
-    console.log(`  CODE    → ${CONFIG.models.code}`);
-    console.log(`  REASON  → ${CONFIG.models.reason}`);
     modelsDetected = true;
   } else {
     // Fallback: usar el modelo original para todo
-    log(`No se pudo detectar familia de: ${modelId}`);
-    log(`Usando modelo original para todos los tiers`);
+    log(`WARN: No se pudo detectar familia de: ${modelId}`);
     CONFIG.models.explore = modelId;
     CONFIG.models.code = modelId;
     CONFIG.models.reason = modelId;
@@ -326,7 +320,8 @@ function handleRequest(req, res) {
 
       parsed.model = model;
 
-      if (model !== originalModel) {
+      // Solo loggear si DEBUG está activo
+      if (process.env.ROUTER_DEBUG === 'true' && model !== originalModel) {
         log(`${originalModel} → ${model} (${reason})`);
       }
 
@@ -362,7 +357,6 @@ function proxyRequest(req, res, modifiedBody) {
     proxyRes.on('data', chunk => {
       if (checkForEnterPlanMode(chunk)) {
         enterPlanModeDetected = true;
-        log('Detected EnterPlanMode in response → next request will use Opus');
       }
       res.write(chunk);
     });
