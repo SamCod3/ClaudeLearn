@@ -105,22 +105,24 @@ Esto asegura que el siguiente request use Opus, incluso antes de que el usuario 
 
 ## Override manual
 
-Forzar un modelo específico para una request usando comentario HTML:
+Forzar un modelo específico para una request usando `#modelo`:
 
 ```
-<!-- model: opus --> explica este código complejo
-<!-- model: haiku --> lista los archivos
-<!-- model: reason --> analiza la arquitectura
+#opus explica este código complejo
+#haiku lista los archivos
+#sonnet escribe una función
 ```
 
 **Nombres aceptados:**
-- `opus`, `sonnet`, `haiku` (nombres de modelo)
-- `reason`, `code`, `explore` (categorías funcionales)
+- `#opus`, `#sonnet`, `#haiku` (nombres de modelo)
+- `#reason`, `#code`, `#explore` (categorías funcionales)
 
 **Logs:**
 ```
 [14:32:15] [Router] sonnet → opus (manual override)
 ```
+
+**Nota:** El override no afecta a background tasks (siempre usan haiku).
 
 ## NON_INTERACTIVE_MODE
 

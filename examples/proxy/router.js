@@ -212,9 +212,9 @@ function isAutoAcceptMode(body) {
   return false;
 }
 
-// Parsear override manual del mensaje (<!-- model: opus/sonnet/haiku -->)
+// Parsear override manual del mensaje (#opus, #sonnet, #haiku)
 function parseModelOverride(lastMessage) {
-  const match = lastMessage.match(/<!--\s*model:\s*(opus|sonnet|haiku|reason|code|explore)\s*-->/i);
+  const match = lastMessage.match(/#(opus|sonnet|haiku|reason|code|explore)\b/i);
   if (match) {
     const name = match[1].toLowerCase();
     // Mapear nombres de modelo a categorías
