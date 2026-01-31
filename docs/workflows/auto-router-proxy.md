@@ -17,13 +17,27 @@ Claude Code → localhost:3456 (proxy) → api.anthropic.com
             Cambia model en request
 ```
 
-## Modelos configurados
+## Detección automática de modelos
+
+El proxy detecta la familia del modelo del primer request y deriva los otros:
+
+```
+Request: claude-sonnet-4-5-20251101
+         ↓
+Familia: 4-5, Fecha: 20251101
+         ↓
+LOW    → claude-haiku-4-5-20251101
+MEDIUM → claude-sonnet-4-5-20251101
+HIGH   → claude-opus-4-5-20251101
+```
+
+**Ventaja:** Cuando Anthropic lance nuevas versiones (ej: `claude-sonnet-5-0-20260301`), el proxy automáticamente derivará `haiku-5-0` y `opus-5-0`.
 
 | Tier | Modelo | Cuándo |
 |------|--------|--------|
-| LOW | claude-haiku-4-5-20251001 | Queries simples, background tasks |
-| MEDIUM | claude-sonnet-4-5-20251101 | Default |
-| HIGH | claude-opus-4-5-20251101 | Riesgo, arquitectura compleja, long context |
+| LOW | haiku (auto) | Queries simples, background tasks |
+| MEDIUM | sonnet (auto) | Default |
+| HIGH | opus (auto) | Riesgo, arquitectura compleja, long context |
 
 ## Reglas de routing
 
@@ -109,22 +123,21 @@ command claude
 Editar `~/.claude/proxy/router.js`:
 
 ```javascript
-// Cambiar modelos
-models: {
-  low: 'claude-haiku-4-5-20251001',
-  medium: 'claude-sonnet-4-5-20251101',
-  high: 'claude-opus-4-5-20251101'
-},
-
 // Ajustar umbral de tokens para opus
 longContextThreshold: 60000,
+
+// Ajustar umbral de chars para queries simples
+shortPromptThreshold: 50,
 
 // Añadir keywords
 keywords: {
   risk: /\b(production|critical|security|...)\b/i,
+  simple: /\b(find|search|list|...)\b/i,
   // ...
 }
 ```
+
+**Nota:** Los modelos se detectan automáticamente de la familia del primer request. No necesitas actualizarlos manualmente.
 
 ## Comparación con alternativas
 
