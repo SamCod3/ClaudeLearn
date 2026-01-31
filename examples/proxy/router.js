@@ -206,6 +206,13 @@ function isAutoAcceptMode(body) {
   return false;
 }
 
+// Detectar Thinking Mode (razonamiento profundo)
+function isThinkingMode(body) {
+  const systemText = getSystemText(body);
+  // Buscar thinking_mode activo (interleaved o enabled)
+  return /thinking_mode.*interleaved|thinking_mode.*enabled/i.test(systemText);
+}
+
 // Decidir modelo según contexto
 function selectModel(body) {
   const messages = body.messages || [];
@@ -223,6 +230,11 @@ function selectModel(body) {
     return { model: originalModel, tier: 'medium', reason: 'no models detected' };
   }
 
+  // NON_INTERACTIVE_MODE: deshabilitar routing automático (útil para CI/CD)
+  if (process.env.NON_INTERACTIVE_MODE === 'true') {
+    return { model: originalModel, tier: 'medium', reason: 'non-interactive mode' };
+  }
+
   let tier = 'medium';
   let reason = 'default';
 
@@ -232,22 +244,14 @@ function selectModel(body) {
     return { model: CONFIG.models.high, tier: 'high', reason: 'entering plan mode (from response)' };
   }
 
-  // DEBUG: Buscar específicamente patrones de Plan Mode
-  const systemText = getSystemText(body);
-  const planModeMatch = systemText.match(/plan.{0,30}mode/gi);
-  if (planModeMatch) {
-    console.log('[Router] DEBUG plan mode patterns found:', planModeMatch);
-  }
-  // Buscar dónde está "Plan mode" en el texto
-  const planModeIndex = systemText.toLowerCase().indexOf('plan mode');
-  if (planModeIndex > -1) {
-    console.log('[Router] DEBUG plan mode context:',
-      systemText.substring(planModeIndex, planModeIndex + 100).replace(/\n/g, '\\n'));
-  }
-
   // Plan Mode: análisis profundo, diseño arquitectónico
   if (isPlanMode(body)) {
     return { model: CONFIG.models.high, tier: 'high', reason: 'plan mode' };
+  }
+
+  // Thinking Mode: razonamiento profundo activo
+  if (isThinkingMode(body)) {
+    return { model: CONFIG.models.high, tier: 'high', reason: 'thinking mode' };
   }
 
   // Auto-Accept: sin supervisión humana, requiere máxima precisión

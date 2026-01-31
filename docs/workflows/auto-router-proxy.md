@@ -47,15 +47,19 @@ Si deriváramos con fechas específicas (ej: `claude-sonnet-4-5-20251101`), obte
 
 ## Reglas de routing
 
+**Orden de prioridad** (evalúa de arriba hacia abajo, primera coincidencia gana):
+
 ```
+0. NON_INTERACTIVE_MODE=true          → original (deshabilita routing)
 1. Plan Mode activo                   → opus  (diseño arquitectónico)
-2. Auto-Accept Mode activo            → opus  (sin supervisión, requiere precisión)
-3. Background/subagent task           → haiku (operaciones internas)
-4. >60K tokens                        → opus  (contexto largo)
-5. Keywords riesgo (produccion, etc)  → opus
-6. Arquitectura + debugging           → opus
-7. Query simple (<50 chars)           → haiku
-8. Default                            → sonnet
+2. Thinking Mode activo               → opus  (razonamiento profundo)
+3. Auto-Accept Mode activo            → opus  (sin supervisión, requiere precisión)
+4. Background/subagent task           → haiku (operaciones internas)
+5. >60K tokens                        → opus  (contexto largo)
+6. Keywords riesgo (produccion, etc)  → opus
+7. Arquitectura + debugging           → opus
+8. Query simple (<50 chars)           → haiku
+9. Default                            → sonnet
 ```
 
 ## Detección de modos
@@ -96,6 +100,46 @@ Esto asegura que el siguiente request use Opus, incluso antes de que el usuario 
 [Router] claude-opus-4-5 → claude-opus-4-5 (entering plan mode (from response))
 [Router] claude-opus-4-5 → claude-opus-4-5 (plan mode)
 [Router] claude-opus-4-5 → claude-sonnet-4-5 (default)
+```
+
+## Thinking Mode
+
+El proxy detecta cuando Claude está en modo de razonamiento profundo (`thinking_mode`):
+
+```javascript
+// Busca en system prompt
+/thinking_mode.*interleaved|thinking_mode.*enabled/i
+```
+
+**Cuándo se activa:**
+- Claude está configurado para usar `<thinking>` blocks
+- Útil para razonamiento complejo que requiere análisis profundo
+
+**Logs:**
+```
+[Router] claude-opus-4-5-20251101 → claude-opus-4-5 (thinking mode)
+```
+
+## NON_INTERACTIVE_MODE
+
+Variable de entorno para **deshabilitar routing automático**. Útil para:
+- Testing del proxy
+- CI/CD donde quieres usar siempre el mismo modelo
+- Debugging de comportamiento específico de un modelo
+
+**Uso:**
+```bash
+NON_INTERACTIVE_MODE=true ANTHROPIC_BASE_URL=http://localhost:3456 claude
+```
+
+**Comportamiento:**
+- El proxy **no modifica** el modelo del request
+- Usa siempre el modelo original de Claude Code
+- Logging muestra `non-interactive mode` como razón
+
+**Logs:**
+```
+[Router] claude-opus-4-5-20251101 → claude-opus-4-5-20251101 (non-interactive mode)
 ```
 
 ## Archivos
@@ -229,7 +273,11 @@ keywords: {
 }
 ```
 
-**Nota:** Los modelos se detectan automáticamente de la familia del primer request. No necesitas actualizarlos manualmente.
+**Notas:**
+- Los modelos se detectan automáticamente de la familia del primer request. No necesitas actualizarlos manualmente.
+- El proxy incluye detección de Thinking Mode automáticamente (no requiere configuración).
+- Usa `NON_INTERACTIVE_MODE=true` para deshabilitar routing temporalmente.
+- Los logs DEBUG fueron eliminados para reducir ruido (v1.2.0).
 
 ## Comparación con alternativas
 
