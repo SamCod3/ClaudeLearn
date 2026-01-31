@@ -39,11 +39,11 @@ Si deriváramos con fechas específicas (ej: `claude-sonnet-4-5-20251101`), obte
 
 **Ventaja:** Cuando Anthropic lance nuevas versiones, los aliases apuntan automáticamente a los snapshots más recientes sin necesidad de actualizar el proxy.
 
-| Tier | Modelo | Cuándo |
-|------|--------|--------|
-| LOW | haiku (auto) | Queries simples, background tasks |
-| MEDIUM | sonnet (auto) | Default |
-| HIGH | opus (auto) | Riesgo, arquitectura compleja, long context |
+| Categoría | Modelo | Cuándo |
+|-----------|--------|--------|
+| EXPLORE | haiku (auto) | Queries simples, background tasks |
+| CODE | sonnet (auto) | Default, escribir código |
+| REASON | opus (auto) | Riesgo, arquitectura, análisis, long context |
 
 ## Reglas de routing
 
@@ -101,6 +101,25 @@ Esto asegura que el siguiente request use Opus, incluso antes de que el usuario 
 [Router] claude-opus-4-5 → claude-opus-4-5 (entering plan mode (from response))
 [Router] claude-opus-4-5 → claude-opus-4-5 (plan mode)
 [Router] claude-opus-4-5 → claude-sonnet-4-5 (default)
+```
+
+## Override manual
+
+Forzar un modelo específico para una request usando comentario HTML:
+
+```
+<!-- model: opus --> explica este código complejo
+<!-- model: haiku --> lista los archivos
+<!-- model: reason --> analiza la arquitectura
+```
+
+**Nombres aceptados:**
+- `opus`, `sonnet`, `haiku` (nombres de modelo)
+- `reason`, `code`, `explore` (categorías funcionales)
+
+**Logs:**
+```
+[14:32:15] [Router] sonnet → opus (manual override)
 ```
 
 ## NON_INTERACTIVE_MODE
@@ -172,15 +191,16 @@ tail -f ~/.claude/proxy/router.log
 ## Logs de ejemplo
 
 ```
-[Router] Familia detectada: 4-5
-[Router] Modelos (aliases):
-  LOW    → claude-haiku-4-5
-  MEDIUM → claude-sonnet-4-5
-  HIGH   → claude-opus-4-5
-[Router] claude-opus-4-5-20251101 → claude-haiku-4-5 (simple query)
-[Router] claude-opus-4-5-20251101 → claude-sonnet-4-5 (default)
-[Router] claude-opus-4-5-20251101 → claude-opus-4-5 (risk keywords detected)
-[Router] claude-haiku-4-5-20251001 → claude-haiku-4-5 (background task)
+[14:32:15] [Router] Familia detectada: 4-5
+[14:32:15] [Router] Modelos:
+  EXPLORE → claude-haiku-4-5
+  CODE    → claude-sonnet-4-5
+  REASON  → claude-opus-4-5
+[14:32:16] [Router] sonnet → haiku (simple query)
+[14:32:17] [Router] sonnet → sonnet (default)
+[14:32:18] [Router] sonnet → opus (risk keywords detected)
+[14:32:19] [Router] sonnet → opus (manual override)
+[14:32:20] [Router] haiku → haiku (background task)
 ```
 
 ## Verificación de funcionamiento

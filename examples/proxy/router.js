@@ -10,16 +10,22 @@
 const http = require('http');
 const https = require('https');
 
+// Logging con timestamp
+function log(message) {
+  const timestamp = new Date().toISOString().substring(11, 19);
+  console.log(`[${timestamp}] [Router] ${message}`);
+}
+
 // Configuración
 const CONFIG = {
   port: 3456,
   anthropicUrl: 'api.anthropic.com',
 
-  // Modelos por tier (se detectan del primer request)
+  // Modelos por categoría funcional (se detectan del primer request)
   models: {
-    low: null,     // haiku
-    medium: null,  // sonnet (detectado del request)
-    high: null     // opus
+    explore: null,  // haiku - búsquedas, listados
+    code: null,     // sonnet - escribir código
+    reason: null    // opus - arquitectura, análisis
   },
 
   // Umbrales
@@ -59,9 +65,9 @@ function detectModelFamily(modelId) {
     family = `${major}-${minor}`;
 
     // Usar aliases sin fecha (Anthropic los resuelve a la versión más reciente)
-    CONFIG.models.low = `claude-haiku-${family}`;
-    CONFIG.models.medium = `claude-sonnet-${family}`;
-    CONFIG.models.high = `claude-opus-${family}`;
+    CONFIG.models.explore = `claude-haiku-${family}`;
+    CONFIG.models.code = `claude-sonnet-${family}`;
+    CONFIG.models.reason = `claude-opus-${family}`;
   } else {
     match = modelId.match(oldPattern);
     if (match) {
@@ -69,26 +75,26 @@ function detectModelFamily(modelId) {
       family = `${major}-${minor}`;
 
       // Patrón viejo con aliases
-      CONFIG.models.low = `claude-${family}-haiku`;
-      CONFIG.models.medium = `claude-${family}-sonnet`;
-      CONFIG.models.high = `claude-${family}-opus`;
+      CONFIG.models.explore = `claude-${family}-haiku`;
+      CONFIG.models.code = `claude-${family}-sonnet`;
+      CONFIG.models.reason = `claude-${family}-opus`;
     }
   }
 
   if (family) {
-    console.log(`[Router] Familia detectada: ${family}`);
-    console.log(`[Router] Modelos (aliases):`);
-    console.log(`  LOW    → ${CONFIG.models.low}`);
-    console.log(`  MEDIUM → ${CONFIG.models.medium}`);
-    console.log(`  HIGH   → ${CONFIG.models.high}`);
+    log(`Familia detectada: ${family}`);
+    log(`Modelos:`);
+    console.log(`  EXPLORE → ${CONFIG.models.explore}`);
+    console.log(`  CODE    → ${CONFIG.models.code}`);
+    console.log(`  REASON  → ${CONFIG.models.reason}`);
     modelsDetected = true;
   } else {
     // Fallback: usar el modelo original para todo
-    console.log(`[Router] No se pudo detectar familia de: ${modelId}`);
-    console.log(`[Router] Usando modelo original para todos los tiers`);
-    CONFIG.models.low = modelId;
-    CONFIG.models.medium = modelId;
-    CONFIG.models.high = modelId;
+    log(`No se pudo detectar familia de: ${modelId}`);
+    log(`Usando modelo original para todos los tiers`);
+    CONFIG.models.explore = modelId;
+    CONFIG.models.code = modelId;
+    CONFIG.models.reason = modelId;
     modelsDetected = true;
   }
 }
@@ -206,6 +212,21 @@ function isAutoAcceptMode(body) {
   return false;
 }
 
+// Parsear override manual del mensaje (<!-- model: opus/sonnet/haiku -->)
+function parseModelOverride(lastMessage) {
+  const match = lastMessage.match(/<!--\s*model:\s*(opus|sonnet|haiku|reason|code|explore)\s*-->/i);
+  if (match) {
+    const name = match[1].toLowerCase();
+    // Mapear nombres de modelo a categorías
+    const tierMap = {
+      opus: 'reason', sonnet: 'code', haiku: 'explore',
+      reason: 'reason', code: 'code', explore: 'explore'
+    };
+    return tierMap[name] || null;
+  }
+  return null;
+}
+
 // Decidir modelo según contexto
 function selectModel(body) {
   const messages = body.messages || [];
@@ -219,54 +240,60 @@ function selectModel(body) {
   }
 
   // Si no hay modelos detectados, usar original
-  if (!CONFIG.models.medium) {
-    return { model: originalModel, tier: 'medium', reason: 'no models detected' };
+  if (!CONFIG.models.code) {
+    return { model: originalModel, tier: 'code', reason: 'no models detected' };
   }
 
   // NON_INTERACTIVE_MODE: deshabilitar routing automático (útil para CI/CD)
   if (process.env.NON_INTERACTIVE_MODE === 'true') {
-    return { model: originalModel, tier: 'medium', reason: 'non-interactive mode' };
+    return { model: originalModel, tier: 'code', reason: 'non-interactive mode' };
   }
 
-  let tier = 'medium';
+  // Override manual: <!-- model: opus/sonnet/haiku -->
+  const overrideTier = parseModelOverride(lastMessage);
+  if (overrideTier) {
+    return { model: CONFIG.models[overrideTier], tier: overrideTier, reason: 'manual override' };
+  }
+
+  let tier = 'code';
   let reason = 'default';
 
   // Si Claude usó EnterPlanMode en respuesta anterior, forzar Opus
   if (enterPlanModeDetected) {
     enterPlanModeDetected = false; // Reset para no afectar requests posteriores
-    return { model: CONFIG.models.high, tier: 'high', reason: 'entering plan mode (from response)' };
+    return { model: CONFIG.models.reason, tier: 'reason', reason: 'entering plan mode (from response)' };
   }
 
   // Plan Mode: análisis profundo, diseño arquitectónico
   if (isPlanMode(body)) {
-    return { model: CONFIG.models.high, tier: 'high', reason: 'plan mode' };
+    return { model: CONFIG.models.reason, tier: 'reason', reason: 'plan mode' };
   }
 
   // Auto-Accept: sin supervisión humana, requiere máxima precisión
   if (isAutoAcceptMode(body)) {
-    return { model: CONFIG.models.high, tier: 'high', reason: 'auto-accept mode' };
+    return { model: CONFIG.models.reason, tier: 'reason', reason: 'auto-accept mode' };
   }
 
   // Background tasks: operaciones internas de bajo costo
   if (isBackgroundTask(body)) {
-    return { model: CONFIG.models.low, tier: 'low', reason: 'background task' };
+    return { model: CONFIG.models.explore, tier: 'explore', reason: 'background task' };
   }
 
   if (tokens > CONFIG.longContextThreshold) {
-    return { model: CONFIG.models.high, tier: 'high', reason: `long context (${tokens} tokens)` };
+    return { model: CONFIG.models.reason, tier: 'reason', reason: `long context (${tokens} tokens)` };
   }
 
   if (CONFIG.keywords.risk.test(lastMessage)) {
-    tier = 'high';
+    tier = 'reason';
     reason = 'risk keywords detected';
   } else if (CONFIG.keywords.arch.test(lastMessage) && CONFIG.keywords.debug.test(lastMessage)) {
-    tier = 'high';
+    tier = 'reason';
     reason = 'architecture + debugging';
   } else if (CONFIG.keywords.simple.test(lastMessage) &&
              lastMessage.length < CONFIG.shortPromptThreshold &&
              !CONFIG.keywords.arch.test(lastMessage) &&
              !CONFIG.keywords.debug.test(lastMessage)) {
-    tier = 'low';
+    tier = 'explore';
     reason = 'simple query';
   }
 
@@ -300,12 +327,12 @@ function handleRequest(req, res) {
       parsed.model = model;
 
       if (model !== originalModel) {
-        console.log(`[Router] ${originalModel} → ${model} (${reason})`);
+        log(`${originalModel} → ${model} (${reason})`);
       }
 
       proxyRequest(req, res, JSON.stringify(parsed));
     } catch (e) {
-      console.error('[Router] Parse error:', e.message);
+      log(`Parse error: ${e.message}`);
       proxyRequest(req, res, body);
     }
   });
@@ -335,7 +362,7 @@ function proxyRequest(req, res, modifiedBody) {
     proxyRes.on('data', chunk => {
       if (checkForEnterPlanMode(chunk)) {
         enterPlanModeDetected = true;
-        console.log('[Router] Detected EnterPlanMode in response → next request will use Opus');
+        log('Detected EnterPlanMode in response → next request will use Opus');
       }
       res.write(chunk);
     });
@@ -346,7 +373,7 @@ function proxyRequest(req, res, modifiedBody) {
   });
 
   proxyReq.on('error', err => {
-    console.error('[Router] Proxy error:', err.message);
+    log(`Proxy error: ${err.message}`);
     res.writeHead(502);
     res.end(JSON.stringify({ error: err.message }));
   });
@@ -380,6 +407,6 @@ server.listen(CONFIG.port, '127.0.0.1', () => {
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n[Router] Shutting down...');
+  log('Shutting down...');
   server.close(() => process.exit(0));
 });
