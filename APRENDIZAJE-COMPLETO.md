@@ -306,6 +306,87 @@ Hook que detecta creación de directorios (nivel 1-2) y sugiere crear una rule e
 - Si existe pero no hay rule para el path → sugiere crear rule con frontmatter `paths:`
 - Ignora: `node_modules/`, `.git/`, `dist/`, `.claude/`, etc.
 
+## Hooks Personalizados en Producción
+
+Hooks instalados en `~/.claude/hooks/` con versiones de referencia en `examples/hooks/`.
+
+### UserPromptSubmit: token-warning.sh
+
+**Propósito:** Avisar cuando el contexto supera el 75% de la ventana.
+
+**Ubicación:**
+- Instalado: `~/.claude/hooks/token-warning.sh`
+- Ejemplo: `examples/hooks/token-warning.sh`
+
+**Funcionamiento:**
+```bash
+# Early exit si input >50KB
+INPUT_SIZE=$(echo "$input" | wc -c | tr -d ' ')
+[[ $INPUT_SIZE -gt 50000 ]] && exit 0
+
+USED_PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d'.' -f1)
+if [ "$USED_PCT" -ge 75 ]; then
+    echo "⚠️  Contexto al ${USED_PCT}% - considera /smart-compact"
+fi
+```
+
+**Salida:** Warning visible en CLI cuando contexto >75%.
+
+### UserPromptSubmit: model-router.sh
+
+**Propósito:** Recomendar modelo (Opus/Sonnet/Haiku) según complejidad del prompt.
+
+**Ubicación:**
+- Instalado: `~/.claude/hooks/model-router.sh`
+- Ejemplo: `examples/hooks/model-router.sh`
+- Docs: `docs/workflows/model-router.md`
+
+**Keywords detectadas:**
+- **Opus:** `refactor`, `architecture`, `debug`, `production`, `critical`
+- **Haiku:** `find`, `search`, `list`, queries simples (<15 palabras)
+- **Sonnet:** Todo lo demás (default)
+
+**Salida:** Recomendación como `💡 Sugerencia: Opus` (no cambia modelo automáticamente).
+
+### SessionEnd: session-end-save.sh
+
+**Propósito:** Guardar metadata al terminar sesión para `/continue-dev`.
+
+**Ubicación:** `~/.claude/hooks/session-end-save.sh`
+
+**Datos guardados en** `~/.claude/session-context/{proyecto}-{session_id}.json`:
+- Archivos editados (Write/Edit)
+- Branch de git
+- Timestamps inicio/fin
+- Último tema de conversación
+
+**Uso:** Skill `/continue-dev` lista sesiones anteriores y carga contexto.
+
+### Protección contra Timeout (Critical)
+
+**Problema:** Hooks UserPromptSubmit se ejecutan secuencialmente. Si el primero falla con input grande, el resto no se ejecuta.
+
+**Solución:** TODOS los hooks UserPromptSubmit deben tener early exit:
+
+```bash
+# Early exit si input es muy grande (>50KB)
+INPUT_SIZE=$(echo "$input" | wc -c | tr -d ' ')
+[[ $INPUT_SIZE -gt 50000 ]] && exit 0
+```
+
+**Límite de 50KB:**
+- ~12,500 palabras o 50 páginas de texto
+- Queries normales pasan (<50KB)
+- Copy/paste de artículos/docs largos → early exit sin error
+
+**Hooks protegidos:**
+- ✓ `token-warning.sh` - Commit d7b60c5
+- ✓ `model-router.sh` - Commit f367350
+
+**Referencias:**
+- `docs/workflows/model-router.md` - Troubleshooting completo
+- `examples/hooks/` - Versiones de referencia para git
+
 ---
 
 # 4. MCP (Model Context Protocol)
