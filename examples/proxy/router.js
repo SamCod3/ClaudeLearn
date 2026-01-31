@@ -37,6 +37,7 @@ const CONFIG = {
 
 // Estado
 let modelsDetected = false;
+let enterPlanModeDetected = false;  // Detectado en respuesta SSE
 
 // Detectar familia del modelo y derivar otros (usando aliases sin fecha)
 function detectModelFamily(modelId) {
@@ -225,6 +226,12 @@ function selectModel(body) {
   let tier = 'medium';
   let reason = 'default';
 
+  // Si Claude usó EnterPlanMode en respuesta anterior, forzar Opus
+  if (enterPlanModeDetected) {
+    enterPlanModeDetected = false; // Reset para no afectar requests posteriores
+    return { model: CONFIG.models.high, tier: 'high', reason: 'entering plan mode (from response)' };
+  }
+
   // DEBUG: Buscar específicamente patrones de Plan Mode
   const systemText = getSystemText(body);
   const planModeMatch = systemText.match(/plan.{0,30}mode/gi);
@@ -272,6 +279,14 @@ function selectModel(body) {
   }
 
   return { model: CONFIG.models[tier], tier, reason };
+}
+
+// Detectar EnterPlanMode en chunk de respuesta SSE
+function checkForEnterPlanMode(chunk) {
+  const text = chunk.toString();
+  // Buscar tool_use con name EnterPlanMode en el stream
+  return text.includes('"name":"EnterPlanMode"') ||
+         text.includes('"name": "EnterPlanMode"');
 }
 
 // Manejar request
@@ -323,7 +338,19 @@ function proxyRequest(req, res, modifiedBody) {
 
   const proxyReq = https.request(options, proxyRes => {
     res.writeHead(proxyRes.statusCode, proxyRes.headers);
-    proxyRes.pipe(res);
+
+    // Interceptar chunks para detectar EnterPlanMode
+    proxyRes.on('data', chunk => {
+      if (checkForEnterPlanMode(chunk)) {
+        enterPlanModeDetected = true;
+        console.log('[Router] Detected EnterPlanMode in response → next request will use Opus');
+      }
+      res.write(chunk);
+    });
+
+    proxyRes.on('end', () => {
+      res.end();
+    });
   });
 
   proxyReq.on('error', err => {
