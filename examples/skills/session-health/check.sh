@@ -35,7 +35,7 @@ get_session_stats() {
   fi
 
   # Contar sesiones
-  NUM_SESSIONS=$(ls -1 "$PROJECT_DIR"/*.jsonl 2>/dev/null | wc -l | tr -d ' ')
+  NUM_SESSIONS=$(/bin/ls -1 "$PROJECT_DIR"/*.jsonl 2>/dev/null | wc -l | tr -d ' ')
 
   if [ "$NUM_SESSIONS" -eq 0 ]; then
     echo "No hay sesiones en este proyecto"
@@ -65,7 +65,7 @@ get_session_stats() {
   LARGEST_DAYS_OLD=$(( (TODAY_MIDNIGHT - LARGEST_MIDNIGHT) / 86400 ))
 
   # Sesión más antigua
-  OLDEST_SESSION=$(ls -t "$PROJECT_DIR"/*.jsonl 2>/dev/null | tail -1)
+  OLDEST_SESSION=$(/bin/ls -t "$PROJECT_DIR"/*.jsonl 2>/dev/null | tail -1)
   OLDEST_DATE=$(stat -f "%Sm" -t "%d/%m/%Y" "$OLDEST_SESSION" 2>/dev/null)
   OLDEST_DATE_YYYYMMDD=$(stat -f "%Sm" -t "%Y-%m-%d" "$OLDEST_SESSION" 2>/dev/null)
 
