@@ -87,12 +87,14 @@ Al cerrar sesión:
 
 **Skills:**
 - `/continue-dev` - Lista y carga sesiones desde backups
-- `/search-sessions` - Búsqueda FTS5 en todas las sesiones
+- `/search-sessions` - Búsqueda FTS5 en sesiones
 
 **Uso:**
 ```bash
-/continue-dev                    # Listar sesiones
-/search-sessions hooks auth      # Buscar en contenido
+/continue-dev                          # Listar sesiones del proyecto
+/search-sessions hooks auth            # Buscar en proyecto actual
+/search-sessions migration --all       # Buscar en todos los proyectos
+/search-sessions backup --project X    # Buscar en proyecto específico
 ```
 
 **Output ejemplo:**
@@ -939,6 +941,36 @@ claude --plugin-dir ./my-plugin
 |---------|--------|---------|
 | Nombre | `/hello` | `/plugin:hello` |
 | Uso | Personal, proyecto | Compartir, distribuir |
+
+## Patrón: Skills Eficientes con Scripts Standalone
+
+**Problema:** Los skills cargan todo el SKILL.md en contexto (~3-4 KB) + múltiples tool calls.
+
+**Solución:** Mover lógica a scripts bash, skill solo invoca.
+
+```
+Antes:  SKILL.md (3 KB) → Claude interpreta → 5 tool calls → ~15-20 KB contexto
+Después: SKILL.md (500 B) → 1 bash call → script ejecuta → ~1-2 KB contexto
+```
+
+**Estructura:**
+```
+~/.claude/
+├── skills/search-sessions/SKILL.md   # Solo invoca script (~500 bytes)
+└── scripts/search-sessions.sh        # Toda la lógica (no se carga)
+```
+
+**SKILL.md mínimo:**
+```markdown
+---
+name: mi-skill
+allowed-tools: Bash
+---
+
+Ejecuta: `~/.claude/scripts/mi-skill.sh {ARGS}`
+```
+
+**Reducción:** ~85-90% menos contexto por invocación.
 
 ---
 
