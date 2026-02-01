@@ -278,9 +278,24 @@ do_cleanup() {
 
     [ -z "$time_start" ] && time_start="?"
     [ -z "$time_end" ] && time_end="?"
-    local time_range="${time_start}→${time_end}"
 
-    printf "  %-3s  %-8s  %-12s  %-13s  %s\n" "$num" "$size_human" "$date" "$time_range" "$short_name"
+    # Si son días diferentes, mostrar fecha en cada timestamp
+    local date_start=""
+    local date_end=""
+    if [ -f "$context_file" ]; then
+      date_start=$(jq -r '.timestamp_start // ""' "$context_file" 2>/dev/null | sed 's/T.*//' | sed 's/.*-//')
+      date_end=$(jq -r '.timestamp_end // ""' "$context_file" 2>/dev/null | sed 's/T.*//' | sed 's/.*-//')
+    fi
+
+    local time_range=""
+    if [ -n "$date_start" ] && [ -n "$date_end" ] && [ "$date_start" != "$date_end" ]; then
+      # Días diferentes: mostrar dd HH:MM→dd HH:MM
+      time_range="${date_start} ${time_start}→${date_end} ${time_end}"
+    else
+      time_range="${time_start}→${time_end}"
+    fi
+
+    printf "  %-3s  %-8s  %-12s  %-18s  %s\n" "$num" "$size_human" "$date" "$time_range" "$short_name"
   done < "$sessions_file"
 
   echo ""
@@ -422,14 +437,28 @@ list_sessions_json() {
     [ -z "$time_start" ] && time_start="?"
     [ -z "$time_end" ] && time_end="?"
 
+    # Extraer fechas para detectar si cruza días
+    local date_start_raw=$(jq -r '.timestamp_start // ""' "$context_file" 2>/dev/null | sed 's/T.*//')
+    local date_end_raw=$(jq -r '.timestamp_end // ""' "$context_file" 2>/dev/null | sed 's/T.*//')
+    local date_start_day=$(echo "$date_start_raw" | sed 's/.*-//')
+    local date_end_day=$(echo "$date_end_raw" | sed 's/.*-//')
+
+    # Formatear time_range con fecha si son días diferentes
+    local time_range=""
+    if [ -n "$date_start_day" ] && [ -n "$date_end_day" ] && [ "$date_start_day" != "$date_end_day" ]; then
+      time_range="${date_start_day} ${time_start}→${date_end_day} ${time_end}"
+    else
+      time_range="${time_start}→${time_end}"
+    fi
+
     if [ "$first" = true ]; then
       first=false
     else
       echo ","
     fi
 
-    printf '  {"index": %d, "size": "%s", "size_mb": %d, "date": "%s", "days_old": %d, "time_start": "%s", "time_end": "%s", "filename": "%s", "path": "%s"}' \
-      "$i" "$size_human" "$size_mb" "$date" "$days_old" "$time_start" "$time_end" "$filename" "$path"
+    printf '  {"index": %d, "size": "%s", "size_mb": %d, "date": "%s", "days_old": %d, "time_range": "%s", "filename": "%s", "path": "%s"}' \
+      "$i" "$size_human" "$size_mb" "$date" "$days_old" "$time_range" "$filename" "$path"
 
     ((i++))
   done < <(du -m "$PROJECT_DIR"/*.jsonl 2>/dev/null | sort -nr)
