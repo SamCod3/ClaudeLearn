@@ -88,6 +88,51 @@ claude
 
 Ver detalles en: `docs/cli/continue-dev.md`
 
+## Performance: Lentitud en startup con muchas sesiones
+
+**Problema:** Claude Code se congela (CPU 99%) al iniciar cuando hay muchas sesiones `.jsonl` acumuladas.
+
+**Causa:** Bug conocido en v2.1.27 ([Issue #22041](https://github.com/anthropics/claude-code/issues/22041)) - Claude Code procesa todos los archivos `.jsonl` al startup, y con sesiones grandes (>5MB) o muchas sesiones (>20), el parseo JSON causa freeze.
+
+**Síntomas:**
+- CLI hangs al iniciar con 99% CPU
+- No puedes hacer nada hasta matar el proceso
+- Afecta a sesiones grandes (>10MB) y a veces pequeñas (~47KB)
+
+**Solución: `cleanupPeriodDays` (Recomendada)**
+
+Añadir a `~/.claude/settings.json`:
+```json
+{
+  "cleanupPeriodDays": 14
+}
+```
+
+**Valores:**
+- **Default:** 30 días (puede acumular sesiones)
+- **Recomendado:** 7-14 días (previene acumulación)
+- **Preservar todo:** 99999 (desactiva limpieza por 274 años)
+
+**Cómo funciona:**
+- Claude Code elimina automáticamente sesiones de >N días
+- No requiere hooks ni scripts custom
+- Se aplica globalmente a todos los proyectos
+- `/continue-dev` seguirá funcionando con las sesiones restantes
+
+**Emergencia (si ya no puedes entrar):**
+```bash
+# Eliminar sesiones del proyecto actual
+rm ~/.claude/projects/-Users-{user}-*/*/jsonl
+
+# O todas las sesiones (todos los proyectos)
+rm ~/.claude/projects/*/*.jsonl
+```
+
+**Referencias:**
+- [Issue #22041 - CLI hangs at 99% CPU](https://github.com/anthropics/claude-code/issues/22041)
+- [Docs: cleanupPeriodDays](https://code.claude.com/docs/en/settings)
+- [Issue #21022 - Hangs con sesiones >50MB](https://github.com/anthropics/claude-code/issues/21022)
+
 ---
 
 # 2. CLI TOOLS VS PLUGINS
