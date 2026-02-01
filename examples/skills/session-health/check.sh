@@ -253,49 +253,45 @@ do_cleanup() {
 
   echo "📋 Sesiones disponibles (ordenadas por tamaño):"
   echo ""
-  printf "  %-3s  %-8s  %-12s  %-13s  %s\n" "#" "Tamaño" "Fecha" "Hora" "Archivo"
+  printf "  %-3s  %-8s  %-25s  %s\n" "#" "Tamaño" "Período" "Archivo"
   echo "  ─────────────────────────────────────────────────────────────"
 
   while IFS='|' read -r num size_mb path; do
     local size_human=$(du -h "$path" 2>/dev/null | cut -f1)
-    local date=$(stat -f "%Sm" -t "%d/%m" "$path" 2>/dev/null)
     local filename=$(basename "$path")
     local session_id="${filename%.jsonl}"
     local short_name="${filename:0:20}..."
-
-    # Buscar timestamps en session-context o .jsonl
-    local time_start=""
-    local time_end=""
     local context_file="$context_dir/${PROJECT_NAME}-${session_id}.json"
 
-    if [ -f "$context_file" ]; then
-      time_start=$(jq -r '.timestamp_start // ""' "$context_file" 2>/dev/null | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
-      time_end=$(jq -r '.timestamp_end // ""' "$context_file" 2>/dev/null | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
-    else
-      time_start=$(head -5 "$path" 2>/dev/null | grep -m1 '"timestamp"' | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
-      time_end=$(tail -5 "$path" 2>/dev/null | grep -m1 '"timestamp"' | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
-    fi
-
-    [ -z "$time_start" ] && time_start="?"
-    [ -z "$time_end" ] && time_end="?"
-
-    # Si son días diferentes, mostrar fecha en cada timestamp
-    local date_start=""
-    local date_end=""
-    if [ -f "$context_file" ]; then
-      date_start=$(jq -r '.timestamp_start // ""' "$context_file" 2>/dev/null | sed 's/T.*//' | sed 's/.*-//')
-      date_end=$(jq -r '.timestamp_end // ""' "$context_file" 2>/dev/null | sed 's/T.*//' | sed 's/.*-//')
-    fi
-
+    # Extraer timestamps completos (fecha y hora)
+    local ts_start=""
+    local ts_end=""
     local time_range=""
-    if [ -n "$date_start" ] && [ -n "$date_end" ] && [ "$date_start" != "$date_end" ]; then
-      # Días diferentes: mostrar dd HH:MM→dd HH:MM
-      time_range="${date_start} ${time_start}→${date_end} ${time_end}"
+
+    if [ -f "$context_file" ]; then
+      ts_start=$(jq -r '.timestamp_start // ""' "$context_file" 2>/dev/null)
+      ts_end=$(jq -r '.timestamp_end // ""' "$context_file" 2>/dev/null)
+
+      # Extraer dd/mm HH:MM de cada timestamp
+      local start_date=$(echo "$ts_start" | sed 's/T.*//' | awk -F- '{print $3"/"$2}')
+      local start_time=$(echo "$ts_start" | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+      local end_date=$(echo "$ts_end" | sed 's/T.*//' | awk -F- '{print $3"/"$2}')
+      local end_time=$(echo "$ts_end" | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+
+      if [ "$start_date" = "$end_date" ]; then
+        # Mismo día: dd/mm HH:MM→HH:MM
+        time_range="${start_date} ${start_time}→${end_time}"
+      else
+        # Días diferentes: dd/mm HH:MM → dd/mm HH:MM
+        time_range="${start_date} ${start_time}→${end_date} ${end_time}"
+      fi
     else
-      time_range="${time_start}→${time_end}"
+      # Fallback: usar fecha del archivo
+      local file_date=$(stat -f "%Sm" -t "%d/%m" "$path" 2>/dev/null)
+      time_range="${file_date} ?→?"
     fi
 
-    printf "  %-3s  %-8s  %-12s  %-18s  %s\n" "$num" "$size_human" "$date" "$time_range" "$short_name"
+    printf "  %-3s  %-8s  %-25s  %s\n" "$num" "$size_human" "$time_range" "$short_name"
   done < "$sessions_file"
 
   echo ""
@@ -420,35 +416,26 @@ list_sessions_json() {
     local session_id="${filename%.jsonl}"
 
     # Buscar timestamps en session-context
-    local time_start=""
-    local time_end=""
     local context_file="$context_dir/${PROJECT_NAME}-${session_id}.json"
+    local time_range=""
 
     if [ -f "$context_file" ]; then
-      # Usar session-context (rápido)
-      time_start=$(jq -r '.timestamp_start // ""' "$context_file" 2>/dev/null | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
-      time_end=$(jq -r '.timestamp_end // ""' "$context_file" 2>/dev/null | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+      local ts_start=$(jq -r '.timestamp_start // ""' "$context_file" 2>/dev/null)
+      local ts_end=$(jq -r '.timestamp_end // ""' "$context_file" 2>/dev/null)
+
+      # Extraer dd/mm HH:MM de cada timestamp
+      local start_date=$(echo "$ts_start" | sed 's/T.*//' | awk -F- '{print $3"/"$2}')
+      local start_time=$(echo "$ts_start" | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+      local end_date=$(echo "$ts_end" | sed 's/T.*//' | awk -F- '{print $3"/"$2}')
+      local end_time=$(echo "$ts_end" | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+
+      if [ "$start_date" = "$end_date" ]; then
+        time_range="${start_date} ${start_time}→${end_time}"
+      else
+        time_range="${start_date} ${start_time}→${end_date} ${end_time}"
+      fi
     else
-      # Fallback: parsear .jsonl (más lento)
-      time_start=$(head -5 "$path" 2>/dev/null | grep -m1 '"timestamp"' | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
-      time_end=$(tail -5 "$path" 2>/dev/null | grep -m1 '"timestamp"' | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
-    fi
-
-    [ -z "$time_start" ] && time_start="?"
-    [ -z "$time_end" ] && time_end="?"
-
-    # Extraer fechas para detectar si cruza días
-    local date_start_raw=$(jq -r '.timestamp_start // ""' "$context_file" 2>/dev/null | sed 's/T.*//')
-    local date_end_raw=$(jq -r '.timestamp_end // ""' "$context_file" 2>/dev/null | sed 's/T.*//')
-    local date_start_day=$(echo "$date_start_raw" | sed 's/.*-//')
-    local date_end_day=$(echo "$date_end_raw" | sed 's/.*-//')
-
-    # Formatear time_range con fecha si son días diferentes
-    local time_range=""
-    if [ -n "$date_start_day" ] && [ -n "$date_end_day" ] && [ "$date_start_day" != "$date_end_day" ]; then
-      time_range="${date_start_day} ${time_start}→${date_end_day} ${time_end}"
-    else
-      time_range="${time_start}→${time_end}"
+      time_range="${date} ?→?"
     fi
 
     if [ "$first" = true ]; then
