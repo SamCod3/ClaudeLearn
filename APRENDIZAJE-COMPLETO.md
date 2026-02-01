@@ -140,6 +140,24 @@ Sesión en progreso:
 
 Ver detalles en: `docs/cli/session-backup.md`
 
+**Migración masiva de proyectos existentes:**
+
+```bash
+# Preview sin cambios
+./examples/hooks/session-backup/migrate-all-projects.sh --dry-run
+
+# Migrar todo (incluye corrección automática de nombres)
+./examples/hooks/session-backup/migrate-all-projects.sh
+```
+
+El script:
+- Migra todas las sesiones de `~/.claude/projects/` a `~/.claude-backup/`
+- Corrige automáticamente nombres mal decodificados (ej: "copia" → "Mikrotik-Asus copia")
+- Actualiza la base de datos FTS5
+- Soporta `--force` para reindexar y `--project NAME` para proyecto específico
+
+Ver reporte completo: `docs/cli/migration-report.md`
+
 ## Performance: Lentitud en startup con muchas sesiones
 
 **Problema:** Claude Code se congela (CPU 99%) al iniciar cuando hay muchas sesiones `.jsonl` acumuladas.
@@ -487,19 +505,22 @@ fi
 
 **Salida:** Recomendación como `💡 Sugerencia: Opus` (no cambia modelo automáticamente).
 
-### SessionEnd: session-end-save.sh
+### SessionEnd: session-end-backup.sh
 
-**Propósito:** Guardar metadata al terminar sesión para `/continue-dev`.
+**Propósito:** Finalizar backup de sesión, extraer metadata e indexar en FTS5.
 
-**Ubicación:** `~/.claude/hooks/session-end-save.sh`
+**Ubicación:** `~/.claude/hooks/session-end-backup.sh`
 
-**Datos guardados en** `~/.claude/session-context/{proyecto}-{session_id}.json`:
-- Archivos editados (Write/Edit)
-- Branch de git
-- Timestamps inicio/fin
-- Último tema de conversación
+**Acciones al cerrar sesión:**
+1. Renombra `current-session.jsonl` → `{session_id}.jsonl`
+2. Extrae metadata → `{session_id}.json`
+3. Indexa en SQLite FTS5 para búsqueda
 
-**Uso:** Skill `/continue-dev` lista sesiones anteriores y carga contexto.
+**Datos guardados en** `~/.claude-backup/{proyecto}/`:
+- `{session_id}.jsonl` - Transcript completo (backup independiente)
+- `{session_id}.json` - Metadata (archivos, branch, timestamps, tema)
+
+**Uso:** `/continue-dev` lista sesiones, `/search-sessions` busca contenido.
 
 ### Protección contra Timeout (Critical)
 
