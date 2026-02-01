@@ -81,10 +81,38 @@ claude
 # Seleccionar sesión → cargar contexto → continuar trabajo
 ```
 
+**Características (v2):**
+- **Tamaño + warnings:** 🔴 >5MB, ⚠️ >2MB
+- **Período completo:** `dd/mm HH:MM→HH:MM` (o `dd/mm HH:MM→dd/mm HH:MM` si cruza días)
+- **Optimizado:** Usa `stat` y session-context (no parsea .jsonl grandes)
+- **Compatible macOS:** Usa `/bin/ls` para evitar alias (exa/eza)
+- **Sesiones huérfanas:** Muestra metadata de sesiones eliminadas como referencia
+
+**Output ejemplo:**
+```
+Sesiones disponibles:
+1   6 MB 🔴   31/01 15:46→01/02 14:03   40ca17c2...
+2   3 MB ⚠️   01/02 09:13→14:01         baf9ed95...
+
+Total: 2 sesiones (9 MB)
+
+────────────────────────────────────────────────────────
+Sesiones eliminadas (solo metadata, 3):
+⚠️  01/02 14:04→14:49 | check.sh, SKILL.md
+⚠️  31/01 15:04→15:29 | session-end-save.sh
+```
+
 **Archivos:**
 - Skill: `~/.claude/skills/continue-dev/SKILL.md`
 - Hook: `~/.claude/hooks/session-end-save.sh`
 - Context: `~/.claude/session-context/{proyecto}-{session_id}.json`
+
+**Datos guardados por el hook:**
+- `session_id`, `project`, `cwd`
+- `timestamp_start`, `timestamp_end`
+- `git_branch`
+- `edited_files`
+- `last_topic`
 
 Ver detalles en: `docs/cli/continue-dev.md`
 
@@ -133,11 +161,20 @@ rm ~/.claude/projects/*/*.jsonl
 Verifica el estado de las sesiones ANTES de que ocurra el problema:
 
 ```bash
-claude
-> /session-health        # Análisis completo con contexto educativo
-> /session-health --quiet  # Solo health score
-> /session-health --cleanup # Limpieza interactiva
+# Desde Claude (skill)
+/session-health           # Análisis completo
+/session-health --quiet   # Solo health score
+/session-health --cleanup # Limpieza interactiva
+
+# Desde terminal (standalone)
+claude-maintenance        # No consume tokens
+claude-maintenance --cleanup
 ```
+
+**Características (v2):**
+- **Período unificado:** `dd/mm HH:MM→HH:MM` (detecta si cruza días)
+- **Compatible macOS:** Usa `/bin/ls` para evitar alias
+- **Dual mode:** Funciona como skill y como comando standalone
 
 **Health Score (semáforo):**
 - 🟢 **VERDE:** <15 sesiones, <5MB total, todas <2MB
