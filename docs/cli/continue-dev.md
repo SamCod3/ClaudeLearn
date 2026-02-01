@@ -2,6 +2,13 @@
 
 Alternativa al `--resume` nativo cuando `sessions-index.json` está vacío/roto.
 
+## Características (v2)
+
+- **Tamaños con warnings:** 🔴 >5MB, ⚠️ >2MB
+- **Optimizado:** Usa `stat` y session-context (no parsea .jsonl grandes)
+- **Compatible con macOS:** Usa `/bin/ls` para evitar alias
+- **Integrado con hook SessionEnd:** Aprovecha metadata ya parseada
+
 ## Problema
 
 El comando `claude --resume` no encuentra sesiones porque el archivo `~/.claude/projects/{proyecto}/sessions-index.json` tiene `entries: []` vacío, aunque los archivos `.jsonl` de las sesiones sí existen.
