@@ -249,21 +249,38 @@ do_cleanup() {
     exit 0
   fi
 
+  local context_dir="$HOME/.claude/session-context"
+
   echo "📋 Sesiones disponibles (ordenadas por tamaño):"
   echo ""
-  printf "  %-3s  %-8s  %-12s  %-10s  %s\n" "#" "Tamaño" "Fecha" "Antigüedad" "Archivo"
-  echo "  ─────────────────────────────────────────────────────────"
+  printf "  %-3s  %-8s  %-12s  %-13s  %s\n" "#" "Tamaño" "Fecha" "Hora" "Archivo"
+  echo "  ─────────────────────────────────────────────────────────────"
 
   while IFS='|' read -r num size_mb path; do
     local size_human=$(du -h "$path" 2>/dev/null | cut -f1)
-    local date=$(stat -f "%Sm" -t "%d/%m/%Y" "$path" 2>/dev/null)
-    local date_yyyymmdd=$(stat -f "%Sm" -t "%Y-%m-%d" "$path" 2>/dev/null)
-    local file_midnight=$(date -j -f "%Y-%m-%d" "$date_yyyymmdd" +%s 2>/dev/null)
-    local days_old=$(( (TODAY_MIDNIGHT - file_midnight) / 86400 ))
+    local date=$(stat -f "%Sm" -t "%d/%m" "$path" 2>/dev/null)
     local filename=$(basename "$path")
-    local short_name="${filename:0:24}..."
+    local session_id="${filename%.jsonl}"
+    local short_name="${filename:0:20}..."
 
-    printf "  %-3s  %-8s  %-12s  %-10s  %s\n" "$num" "$size_human" "$date" "$(pluralize_days $days_old)" "$short_name"
+    # Buscar timestamps en session-context o .jsonl
+    local time_start=""
+    local time_end=""
+    local context_file="$context_dir/${PROJECT_NAME}-${session_id}.json"
+
+    if [ -f "$context_file" ]; then
+      time_start=$(jq -r '.timestamp_start // ""' "$context_file" 2>/dev/null | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+      time_end=$(jq -r '.timestamp_end // ""' "$context_file" 2>/dev/null | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+    else
+      time_start=$(head -5 "$path" 2>/dev/null | grep -m1 '"timestamp"' | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+      time_end=$(tail -5 "$path" 2>/dev/null | grep -m1 '"timestamp"' | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+    fi
+
+    [ -z "$time_start" ] && time_start="?"
+    [ -z "$time_end" ] && time_end="?"
+    local time_range="${time_start}→${time_end}"
+
+    printf "  %-3s  %-8s  %-12s  %-13s  %s\n" "$num" "$size_human" "$date" "$time_range" "$short_name"
   done < "$sessions_file"
 
   echo ""
@@ -372,6 +389,8 @@ do_cleanup() {
 # ═══════════════════════════════════════════════════════════
 
 list_sessions_json() {
+  local context_dir="$HOME/.claude/session-context"
+
   echo "["
   local first=true
   local i=1
@@ -383,6 +402,25 @@ list_sessions_json() {
     local file_midnight=$(date -j -f "%Y-%m-%d" "$date_yyyymmdd" +%s 2>/dev/null)
     local days_old=$(( (TODAY_MIDNIGHT - file_midnight) / 86400 ))
     local filename=$(basename "$path")
+    local session_id="${filename%.jsonl}"
+
+    # Buscar timestamps en session-context
+    local time_start=""
+    local time_end=""
+    local context_file="$context_dir/${PROJECT_NAME}-${session_id}.json"
+
+    if [ -f "$context_file" ]; then
+      # Usar session-context (rápido)
+      time_start=$(jq -r '.timestamp_start // ""' "$context_file" 2>/dev/null | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+      time_end=$(jq -r '.timestamp_end // ""' "$context_file" 2>/dev/null | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+    else
+      # Fallback: parsear .jsonl (más lento)
+      time_start=$(head -5 "$path" 2>/dev/null | grep -m1 '"timestamp"' | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+      time_end=$(tail -5 "$path" 2>/dev/null | grep -m1 '"timestamp"' | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+    fi
+
+    [ -z "$time_start" ] && time_start="?"
+    [ -z "$time_end" ] && time_end="?"
 
     if [ "$first" = true ]; then
       first=false
@@ -390,8 +428,8 @@ list_sessions_json() {
       echo ","
     fi
 
-    printf '  {"index": %d, "size": "%s", "size_mb": %d, "date": "%s", "days_old": %d, "filename": "%s", "path": "%s"}' \
-      "$i" "$size_human" "$size_mb" "$date" "$days_old" "$filename" "$path"
+    printf '  {"index": %d, "size": "%s", "size_mb": %d, "date": "%s", "days_old": %d, "time_start": "%s", "time_end": "%s", "filename": "%s", "path": "%s"}' \
+      "$i" "$size_human" "$size_mb" "$date" "$days_old" "$time_start" "$time_end" "$filename" "$path"
 
     ((i++))
   done < <(du -m "$PROJECT_DIR"/*.jsonl 2>/dev/null | sort -nr)
