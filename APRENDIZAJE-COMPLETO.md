@@ -151,8 +151,18 @@ claude
 
 **Archivos:** `~/.claude/skills/session-health/`
 
+**Nota sobre `--resume`:**
+
+No puedes usar `claude --resume <id>` para cargar y compactar una sesión específica debido a dos bugs:
+- **Issue #18311**: `sessions-index.json` desincronizado - picker no encuentra sesiones
+- **Issue #22107**: Bug en v2.1.27+ que pierde ~96% del contexto al resumir
+
+La única opción para sesiones grandes es **eliminarlas** con `/session-health --cleanup`.
+
 **Referencias:**
 - [Issue #22041 - CLI hangs at 99% CPU](https://github.com/anthropics/claude-code/issues/22041)
+- [Issue #18311 - --resume "No conversations found"](https://github.com/anthropics/claude-code/issues/18311)
+- [Issue #22107 - --resume pierde contexto](https://github.com/anthropics/claude-code/issues/22107)
 - [Docs: cleanupPeriodDays](https://code.claude.com/docs/en/settings)
 - [Issue #21022 - Hangs con sesiones >50MB](https://github.com/anthropics/claude-code/issues/21022)
 
