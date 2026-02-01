@@ -122,11 +122,34 @@ Añadir a `~/.claude/settings.json`:
 **Emergencia (si ya no puedes entrar):**
 ```bash
 # Eliminar sesiones del proyecto actual
-rm ~/.claude/projects/-Users-{user}-*/*/jsonl
+rm ~/.claude/projects/-Users-{user}-*/*.jsonl
 
 # O todas las sesiones (todos los proyectos)
 rm ~/.claude/projects/*/*.jsonl
 ```
+
+**Skill `/session-health` - Monitor Preventivo:**
+
+Verifica el estado de las sesiones ANTES de que ocurra el problema:
+
+```bash
+claude
+> /session-health        # Análisis completo con contexto educativo
+> /session-health --quiet  # Solo health score
+> /session-health --cleanup # Limpieza interactiva
+```
+
+**Health Score (semáforo):**
+- 🟢 **VERDE:** <15 sesiones, <5MB total, todas <2MB
+- 🟡 **AMARILLO:** 15-25 sesiones, 5-10MB total, o alguna >2MB
+- 🔴 **ROJO:** >25 sesiones, >10MB total, o alguna >5MB
+
+**Cuándo usarlo:**
+- Si `--resume` tarda más de lo normal (>3 segundos)
+- Periódicamente (cada semana) para monitoreo preventivo
+- Después de sesiones muy largas
+
+**Archivos:** `~/.claude/skills/session-health/`
 
 **Referencias:**
 - [Issue #22041 - CLI hangs at 99% CPU](https://github.com/anthropics/claude-code/issues/22041)
