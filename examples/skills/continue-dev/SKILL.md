@@ -87,6 +87,54 @@ if [ $TOTAL_COUNT -gt 0 ]; then
   echo ""
   echo "Total: $TOTAL_COUNT sesiones (${TOTAL_MB} MB)"
 fi
+
+# Buscar contexts huérfanos (sin .jsonl)
+ORPHAN_COUNT=0
+ORPHAN_OUTPUT=""
+
+for ctx in "$CONTEXT_DIR/${PROJECT_NAME}-"*.json; do
+  [ -f "$ctx" ] || continue
+
+  # Extraer session_id del nombre del archivo
+  ctx_name=$(basename "$ctx" .json)
+  session_id="${ctx_name#${PROJECT_NAME}-}"
+
+  # Verificar si existe el .jsonl correspondiente
+  jsonl_file="$SESSIONS_DIR/${session_id}.jsonl"
+  if [ ! -f "$jsonl_file" ]; then
+    # Es huérfano - extraer info
+    ts_start=$(jq -r '.timestamp_start // ""' "$ctx" 2>/dev/null)
+    ts_end=$(jq -r '.timestamp_end // ""' "$ctx" 2>/dev/null)
+    files=$(jq -r '.edited_files[]?' "$ctx" 2>/dev/null | xargs -I{} basename {} 2>/dev/null | head -3 | tr '\n' ', ' | sed 's/,$//')
+
+    # Formatear período
+    if [ -n "$ts_start" ]; then
+      start_date=$(echo "$ts_start" | sed 's/T.*//' | awk -F- '{print $3"/"$2}')
+      start_time=$(echo "$ts_start" | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+      end_date=$(echo "$ts_end" | sed 's/T.*//' | awk -F- '{print $3"/"$2}')
+      end_time=$(echo "$ts_end" | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+
+      if [ "$start_date" = "$end_date" ]; then
+        period="${start_date} ${start_time}→${end_time}"
+      else
+        period="${start_date} ${start_time}→${end_date} ${end_time}"
+      fi
+    else
+      period="?"
+    fi
+
+    [ -z "$files" ] && files="-"
+    ORPHAN_OUTPUT="${ORPHAN_OUTPUT}⚠️  ${period} | ${files}\n"
+    ORPHAN_COUNT=$((ORPHAN_COUNT + 1))
+  fi
+done
+
+if [ $ORPHAN_COUNT -gt 0 ]; then
+  echo ""
+  echo "────────────────────────────────────────────────────────"
+  echo "Sesiones eliminadas (solo metadata, $ORPHAN_COUNT):"
+  printf "$ORPHAN_OUTPUT"
+fi
 ```
 
 ## Paso 2: Mostrar menú
