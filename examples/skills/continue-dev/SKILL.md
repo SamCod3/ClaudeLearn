@@ -8,31 +8,30 @@ Listar sesiones anteriores del proyecto actual y cargar el contexto de la que el
 
 ## Paso 1: Obtener sesiones del proyecto
 
-Ejecuta este comando para listar las sesiones:
+Ejecuta este comando para listar las sesiones desde backups:
 
 ```bash
-CWD_ENCODED=$(echo "$PWD" | sed 's|/|-|g' | sed 's|^-||')
-SESSIONS_DIR="$HOME/.claude/projects/-$CWD_ENCODED"
 PROJECT_NAME=$(basename "$PWD")
-CONTEXT_DIR="$HOME/.claude/session-context"
+BACKUP_DIR="$HOME/.claude-backup/$PROJECT_NAME"
 
-# Verificar directorio existe
-if [ ! -d "$SESSIONS_DIR" ]; then
-  echo "No hay sesiones para este proyecto"
+# Crear directorio si no existe
+mkdir -p "$BACKUP_DIR"
+
+# Verificar si hay sesiones
+if [ ! -d "$BACKUP_DIR" ] || [ -z "$(/bin/ls "$BACKUP_DIR"/*.jsonl 2>/dev/null)" ]; then
+  echo "No hay backups de sesiones para este proyecto"
+  echo "El sistema de backup se activará en la próxima sesión"
   exit 0
 fi
-
-# Obtener session_id actual (más reciente) - usar /bin/ls para evitar alias
-CURRENT_SESSION=$(/bin/ls -t "$SESSIONS_DIR"/*.jsonl 2>/dev/null | head -1 | xargs basename 2>/dev/null | sed 's/.jsonl//')
 
 # Variables para totales
 TOTAL_SIZE=0
 TOTAL_COUNT=0
 
-for f in $(/bin/ls -t "$SESSIONS_DIR"/*.jsonl 2>/dev/null); do
+# Listar sesiones finalizadas (excluir current-session.jsonl)
+for f in $(/bin/ls -t "$BACKUP_DIR"/*.jsonl 2>/dev/null | grep -v "current-session.jsonl"); do
   [ -f "$f" ] || continue
   id=$(basename "$f" .jsonl)
-  [ "$id" = "$CURRENT_SESSION" ] && continue
 
   # Tamaño del .jsonl (stat es instantáneo)
   SIZE_BYTES=$(stat -f "%z" "$f" 2>/dev/null || echo 0)
@@ -53,18 +52,28 @@ for f in $(/bin/ls -t "$SESSIONS_DIR"/*.jsonl 2>/dev/null); do
     SIZE_HUMAN="${SIZE_KB} KB"
   fi
 
-  # Buscar session-context (ya parseado por hook SessionEnd)
-  CONTEXT_FILE="$CONTEXT_DIR/${PROJECT_NAME}-${id}.json"
+  # Buscar metadata (en mismo directorio de backup)
+  METADATA_FILE="$BACKUP_DIR/${id}.json"
 
-  if [ -f "$CONTEXT_FILE" ]; then
-    # Usar session-context (rápido, ya parseado)
-    BRANCH=$(jq -r '.git_branch // "?"' "$CONTEXT_FILE" 2>/dev/null)
-    DATE_RAW=$(jq -r '.timestamp_start // ""' "$CONTEXT_FILE" 2>/dev/null)
-    FILES=$(jq -r '.edited_files[]?' "$CONTEXT_FILE" 2>/dev/null | xargs -I{} basename {} 2>/dev/null | head -3 | tr '\n' ', ' | sed 's/,$//')
+  if [ -f "$METADATA_FILE" ]; then
+    # Usar metadata (rápido, ya parseado)
+    BRANCH=$(jq -r '.git_branch // "?"' "$METADATA_FILE" 2>/dev/null)
+    DATE_RAW=$(jq -r '.timestamp_start // ""' "$METADATA_FILE" 2>/dev/null)
+    END_RAW=$(jq -r '.timestamp_end // ""' "$METADATA_FILE" 2>/dev/null)
+    FILES=$(jq -r '.edited_files[]?' "$METADATA_FILE" 2>/dev/null | xargs -I{} basename {} 2>/dev/null | head -3 | tr '\n' ', ' | sed 's/,$//')
 
-    # Formatear fecha
+    # Formatear período (con timestamps inicio→fin)
     if [ -n "$DATE_RAW" ]; then
-      DATE_FMT=$(echo "$DATE_RAW" | cut -dT -f1,2 | sed 's/T/ /' | cut -d: -f1,2)
+      start_date=$(echo "$DATE_RAW" | sed 's/T.*//' | awk -F- '{print $3"/"$2}')
+      start_time=$(echo "$DATE_RAW" | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+      end_date=$(echo "$END_RAW" | sed 's/T.*//' | awk -F- '{print $3"/"$2}')
+      end_time=$(echo "$END_RAW" | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+
+      if [ "$start_date" = "$end_date" ]; then
+        DATE_FMT="${start_date} ${start_time}→${end_time}"
+      else
+        DATE_FMT="${start_date} ${start_time}→${end_date} ${end_time}"
+      fi
     else
       DATE_FMT=$(stat -f "%Sm" -t "%d/%m %H:%M" "$f" 2>/dev/null)
     fi
@@ -88,52 +97,25 @@ if [ $TOTAL_COUNT -gt 0 ]; then
   echo "Total: $TOTAL_COUNT sesiones (${TOTAL_MB} MB)"
 fi
 
-# Buscar contexts huérfanos (sin .jsonl)
-ORPHAN_COUNT=0
-ORPHAN_OUTPUT=""
+# Mostrar sesión en progreso (current-session.jsonl)
+CURRENT_FILE="$BACKUP_DIR/current-session.jsonl"
+if [ -f "$CURRENT_FILE" ]; then
+  CURRENT_SIZE=$(stat -f "%z" "$CURRENT_FILE" 2>/dev/null || echo 0)
+  CURRENT_KB=$((CURRENT_SIZE / 1024))
+  CURRENT_LINES=$(wc -l < "$CURRENT_FILE" 2>/dev/null | tr -d ' ')
 
-for ctx in "$CONTEXT_DIR/${PROJECT_NAME}-"*.json; do
-  [ -f "$ctx" ] || continue
-
-  # Extraer session_id del nombre del archivo
-  ctx_name=$(basename "$ctx" .json)
-  session_id="${ctx_name#${PROJECT_NAME}-}"
-
-  # Verificar si existe el .jsonl correspondiente
-  jsonl_file="$SESSIONS_DIR/${session_id}.jsonl"
-  if [ ! -f "$jsonl_file" ]; then
-    # Es huérfano - extraer info
-    ts_start=$(jq -r '.timestamp_start // ""' "$ctx" 2>/dev/null)
-    ts_end=$(jq -r '.timestamp_end // ""' "$ctx" 2>/dev/null)
-    files=$(jq -r '.edited_files[]?' "$ctx" 2>/dev/null | xargs -I{} basename {} 2>/dev/null | head -3 | tr '\n' ', ' | sed 's/,$//')
-
-    # Formatear período
-    if [ -n "$ts_start" ]; then
-      start_date=$(echo "$ts_start" | sed 's/T.*//' | awk -F- '{print $3"/"$2}')
-      start_time=$(echo "$ts_start" | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
-      end_date=$(echo "$ts_end" | sed 's/T.*//' | awk -F- '{print $3"/"$2}')
-      end_time=$(echo "$ts_end" | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
-
-      if [ "$start_date" = "$end_date" ]; then
-        period="${start_date} ${start_time}→${end_time}"
-      else
-        period="${start_date} ${start_time}→${end_date} ${end_time}"
-      fi
-    else
-      period="?"
-    fi
-
-    [ -z "$files" ] && files="-"
-    ORPHAN_OUTPUT="${ORPHAN_OUTPUT}⚠️  ${period} | ${files}\n"
-    ORPHAN_COUNT=$((ORPHAN_COUNT + 1))
-  fi
-done
-
-if [ $ORPHAN_COUNT -gt 0 ]; then
   echo ""
   echo "────────────────────────────────────────────────────────"
-  echo "Sesiones eliminadas (solo metadata, $ORPHAN_COUNT):"
-  printf "$ORPHAN_OUTPUT"
+  echo "Sesión en progreso:"
+  echo "- current-session.jsonl (${CURRENT_KB} KB, $CURRENT_LINES observations)"
+
+  # Mostrar última herramienta usada
+  LAST_TOOL=$(tail -1 "$CURRENT_FILE" 2>/dev/null | jq -r '.tool_name // "?"')
+  LAST_TIME=$(tail -1 "$CURRENT_FILE" 2>/dev/null | jq -r '.timestamp // ""')
+  if [ -n "$LAST_TIME" ]; then
+    TIME_AGO=$(echo "$LAST_TIME" | sed 's/.*T\([0-9]*:[0-9]*\).*/\1/')
+    echo "  Última herramienta: $LAST_TOOL (${TIME_AGO})"
+  fi
 fi
 ```
 
@@ -163,16 +145,18 @@ Usa AskUserQuestion para que el usuario elija.
 
 ## Paso 3: Cargar contexto
 
-Una vez el usuario elija, carga el session-context:
+Una vez el usuario elija, carga el metadata del backup:
 
 ```bash
 PROJECT_NAME=$(basename "$PWD")
-CONTEXT_FILE="$HOME/.claude/session-context/${PROJECT_NAME}-${id}.json"
+BACKUP_DIR="$HOME/.claude-backup/$PROJECT_NAME"
+METADATA_FILE="$BACKUP_DIR/${id}.json"
 
-if [ -f "$CONTEXT_FILE" ]; then
-  jq '.' "$CONTEXT_FILE"
+if [ -f "$METADATA_FILE" ]; then
+  jq '.' "$METADATA_FILE"
 else
-  echo "No hay session-context para esta sesión"
+  echo "No hay metadata para esta sesión"
+  echo "Puede que sea una sesión antigua sin backup completo"
 fi
 ```
 
@@ -206,8 +190,19 @@ Si el usuario dice sí, lee los archivos relevantes.
 
 ## Dependencias
 
-Este skill funciona mejor con el hook `SessionEnd` configurado:
-- Hook: `~/.claude/hooks/session-end-save.sh`
-- Guarda: session-context con git_branch, edited_files, timestamps, last_topic
+Este skill funciona con el sistema de backup resiliente:
 
-Sin el hook, solo muestra tamaño y fecha (sin archivos editados ni branch).
+**Hooks requeridos:**
+- **PostToolUse:** `~/.claude/hooks/post-tool-backup.sh` (captura incremental)
+- **SessionEnd:** `~/.claude/hooks/session-end-backup.sh` (finaliza + indexa)
+
+**Storage:**
+- Backups: `~/.claude-backup/{project}/*.jsonl`
+- Metadata: `~/.claude-backup/{project}/*.json`
+- FTS5 index: `~/.claude-backup/sessions.db`
+
+**Ventajas vs sistema anterior:**
+- ✅ Backup completo independiente de ~/.claude/projects/
+- ✅ Captura resiliente (nunca pierdes datos)
+- ✅ Muestra sesión en progreso (current-session.jsonl)
+- ✅ Búsqueda FTS5 disponible con /search-sessions

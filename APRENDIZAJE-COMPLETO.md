@@ -64,57 +64,81 @@ Muestra checkpoints de la conversación. Opciones al restaurar:
 
 **Resumen:** Tú haces el trabajo cognitivo explorando, luego le das a Claude instrucciones directas como si ya supieras todo desde el principio.
 
-## Sistema /continue-dev
+## Sistema de Backup Resiliente
 
-Alternativa a `--resume` cuando `sessions-index.json` está vacío/roto.
+Sistema independiente de backup para sesiones que no depende de `~/.claude/projects/`.
 
-**Problema:** `claude --resume` no encuentra sesiones aunque los `.jsonl` existen.
+**Problema:** El sistema oficial de sesiones puede fallar:
+- `sessions-index.json` se corrompe/vacía
+- `--resume` no encuentra sesiones
+- `cleanupPeriodDays` elimina sesiones antiguas
 
-**Solución:**
-1. **Skill `/continue-dev`** - Lista sesiones y carga contexto manualmente
-2. **Hook `SessionEnd`** - Guarda metadata al terminar sesión
+**Solución: Backup resiliente con captura en caliente**
+
+```
+Durante sesión:
+├─ PostToolUse hook → Append a current-session.jsonl (captura cada tool)
+└─ Si Claude crashea, tienes backup hasta último tool
+
+Al cerrar sesión:
+├─ SessionEnd hook → Finaliza backup + extrae metadata + indexa FTS5
+└─ Datos en ~/.claude-backup/ (independiente de ~/.claude/projects/)
+```
+
+**Skills:**
+- `/continue-dev` - Lista y carga sesiones desde backups
+- `/search-sessions` - Búsqueda FTS5 en todas las sesiones
 
 **Uso:**
 ```bash
-claude
-> /continue-dev
-# Seleccionar sesión → cargar contexto → continuar trabajo
+/continue-dev                    # Listar sesiones
+/search-sessions hooks auth      # Buscar en contenido
 ```
-
-**Características (v2):**
-- **Tamaño + warnings:** 🔴 >5MB, ⚠️ >2MB
-- **Período completo:** `dd/mm HH:MM→HH:MM` (o `dd/mm HH:MM→dd/mm HH:MM` si cruza días)
-- **Optimizado:** Usa `stat` y session-context (no parsea .jsonl grandes)
-- **Compatible macOS:** Usa `/bin/ls` para evitar alias (exa/eza)
-- **Sesiones huérfanas:** Muestra metadata de sesiones eliminadas como referencia
 
 **Output ejemplo:**
 ```
-Sesiones disponibles:
-1   6 MB 🔴   31/01 15:46→01/02 14:03   40ca17c2...
-2   3 MB ⚠️   01/02 09:13→14:01         baf9ed95...
+Sesiones de ClaudeLearn (backups independientes):
+#   Tamaño      Período                  Branch   Archivos
+──────────────────────────────────────────────────────────────
+1   6.2 MB 🔴   01/02 15:04→16:23       [main]   SKILL.md, hooks.sh
+2   3.1 MB ⚠️   01/02 09:13→14:01       [main]   APRENDIZAJE.md
 
-Total: 2 sesiones (9 MB)
-
-────────────────────────────────────────────────────────
-Sesiones eliminadas (solo metadata, 3):
-⚠️  01/02 14:04→14:49 | check.sh, SKILL.md
-⚠️  31/01 15:04→15:29 | session-end-save.sh
+Sesión en progreso:
+- current-session.jsonl (142 KB, 18 observations)
+  Última herramienta: Write (15:34)
 ```
 
-**Archivos:**
-- Skill: `~/.claude/skills/continue-dev/SKILL.md`
-- Hook: `~/.claude/hooks/session-end-save.sh`
-- Context: `~/.claude/session-context/{proyecto}-{session_id}.json`
+**Archivos del sistema:**
+```
+~/.claude/hooks/
+├─ post-tool-backup.sh      # Captura incremental (PostToolUse)
+├─ session-end-backup.sh    # Finaliza + indexa (SessionEnd)
+└─ index-session.sh         # Indexado FTS5
 
-**Datos guardados por el hook:**
-- `session_id`, `project`, `cwd`
-- `timestamp_start`, `timestamp_end`
-- `git_branch`
-- `edited_files`
-- `last_topic`
+~/.claude/skills/
+├─ continue-dev/SKILL.md    # Lista y carga backups
+└─ search-sessions/SKILL.md # Búsqueda FTS5
 
-Ver detalles en: `docs/cli/continue-dev.md`
+~/.claude-backup/
+├─ sessions.db              # SQLite FTS5 (búsqueda)
+└─ {proyecto}/
+   ├─ current-session.jsonl # Sesión en progreso
+   ├─ {session_id}.jsonl    # Backup completo
+   └─ {session_id}.json     # Metadata
+```
+
+**Comparativa vs Claude-Mem:**
+
+| Feature | Este sistema | Claude-Mem |
+|---------|-------------|------------|
+| Setup | 3 hooks bash | Plugin + worker |
+| Dependencies | bash, jq, sqlite3 | Node, Bun, ChromaDB |
+| Overhead | Bajo (append) | Alto (worker 24/7) |
+| Búsqueda FTS5 | ✅ | ✅ |
+| Compresión | ❌ | ✅ Claude SDK |
+| Auto-inject | ❌ | ✅ SessionStart |
+
+Ver detalles en: `docs/cli/session-backup.md`
 
 ## Performance: Lentitud en startup con muchas sesiones
 
