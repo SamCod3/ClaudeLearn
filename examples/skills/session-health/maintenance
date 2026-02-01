@@ -1,0 +1,14 @@
+#!/bin/bash
+# Wrapper para ejecutar session-health desde terminal
+# Permite uso standalone sin entrar a Claude
+
+# Resolver symlink si existe
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT_PATH" ]; do
+  SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+  SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+  [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+
+SKILL_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+exec bash "$SKILL_DIR/check.sh" "$@"
