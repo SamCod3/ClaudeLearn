@@ -1449,6 +1449,31 @@ grep "Working from directory" ~/.claude-swarm/sessions/*/orchestrator.log
 head -50 ~/.claude-swarm/sessions/*/t1.output
 ```
 
+**Sistema de backup refactorizado (FIXED 2026-02-02):**
+
+*Problema:* El hook `PostToolUse` ejecutaba `post-tool-backup.sh` después de CADA herramienta, añadiendo overhead al contexto de la conversación.
+
+*Solución:* Eliminar captura incremental, confiar en transcript oficial:
+
+1. **Eliminado** hook `post-tool-backup.sh` de PostToolUse
+2. **Mejorado** `pre-compact-backup.sh` - extrae metadata antes de compact
+3. **Mejorado** `session-end-backup.sh` - metadata completa del transcript oficial
+
+*Nueva metadata extraída:*
+```json
+{
+  "edited_files": [...],      // archivos modificados (Write/Edit)
+  "read_files": [...],        // archivos leídos (Read)
+  "bash_commands": [...],     // comandos ejecutados
+  "tool_counts": "Read: 15, Edit: 8",
+  "first_topic": "...",       // contexto inicial
+  "last_topic": "...",        // último tema
+  "backup_trigger": "session-end" | "pre-compact"
+}
+```
+
+*Resultado:* **Cero overhead** durante la sesión, backup solo en PreCompact y SessionEnd.
+
 ## Extensiones futuras
 
 - [ ] Checkpoint/resume de sesiones largas
