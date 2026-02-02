@@ -9,7 +9,9 @@ Preferir herramientas CLI instaladas sobre plugins cuando estén disponibles. So
 | **GitHub** | mcp-github | `gh` | `brew install gh` |
 | **Git** | - | `git` | Ya instalado |
 | **GitLab** | mcp-gitlab | `glab` | `brew install glab` |
-| **Búsqueda código** | - | `rg` (ripgrep) | `brew install ripgrep` |
+| **Búsqueda código (texto)** | - | `ug` (ugrep) | `brew install ugrep` |
+| **Búsqueda código (estructura)** | - | `ast-grep` | `brew install ast-grep` |
+| **Búsqueda código (fallback)** | - | `rg` (ripgrep) | `brew install ripgrep` |
 | **Búsqueda archivos** | - | `fd` | `brew install fd` |
 | **JSON** | - | `jq` | `brew install jq` |
 | **HTTP/APIs** | mcp-fetch | `curl` / `httpie` | `brew install httpie` |
@@ -73,12 +75,52 @@ az login               # Azure
 ### 3. Indicar a Claude que use CLIs
 En tu CLAUDE.md:
 ```markdown
-## CLI Tools (preferir sobre plugins)
+## CLI Tools (preferir sobre plugins/herramientas internas)
 - gh: GitHub (issues, PRs, API)
-- rg: búsqueda en código
+- ug (ugrep): búsqueda de texto - PREFERIR sobre Grep interno
+- ast-grep: búsqueda estructural de código
+- fd: búsqueda de archivos - PREFERIR sobre Glob
 - jq: manipulación JSON
 - aws/gcloud/az: cloud providers
 ```
+
+### 4. Forzar uso de CLI con hooks (opcional)
+
+Para garantizar que Claude use `ugrep` en vez de Grep interno, crea un hook PreToolUse:
+
+**`~/.claude/hooks/force-ugrep.sh`:**
+```bash
+#!/bin/bash
+# Hook PreToolUse: Recordatorio para usar ugrep en vez de Grep tool
+
+input=$(cat)
+tool=$(echo "$input" | jq -r '.tool // empty')
+
+if [ "$tool" = "Grep" ]; then
+  echo "💡 Recordatorio: usar Bash con 'ug' (ugrep) en vez de Grep tool"
+  echo "   Ejemplo: ug \"pattern\" --include='*.ext'"
+fi
+```
+
+**Activar en `~/.claude/settings.json`:**
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/force-ugrep.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Resultado:** Claude recibe un recordatorio cada vez que intenta usar Grep, promoviendo el uso de ugrep.
 
 ## Ejemplos de uso
 
@@ -113,17 +155,25 @@ psql -d mydb -c "SELECT * FROM users LIMIT 10"
 
 ### Búsqueda: Herramientas internas vs CLI
 
-Claude tiene Grep/Glob internos, pero `rg` y `fd` son más potentes:
+Claude tiene Grep/Glob internos, pero CLIs externos son más potentes:
 
 ```bash
-# Buscar patrón en código
-rg "TODO|FIXME" --type ts
+# Búsqueda de texto (ugrep - más preciso que ripgrep)
+ug "pattern" --include='*.ts'           # búsqueda simple
+ug -w "exact_word"                      # solo palabras completas
+ug -Q "literal.string"                  # sin regex
+ug --bool "error AND critical"          # búsqueda booleana
 
-# Buscar archivos por nombre
+# Búsqueda estructural (ast-grep - por sintaxis, no texto)
+ast-grep --pattern 'function $NAME($$$)' --lang ts
+ast-grep --pattern 'if ($COND) { $$$ }' --lang bash
+
+# Búsqueda de archivos (fd)
 fd "\.test\.ts$"
+fd -e ts -e tsx
 
-# Combinar
-fd -e ts | xargs rg "async function"
+# Combinar herramientas
+fd -e ts | xargs ug "async function"
 ```
 
 ## Resumen
