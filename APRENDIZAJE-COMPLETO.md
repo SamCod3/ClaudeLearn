@@ -499,13 +499,27 @@ fi
 - Instalado: `~/.claude/hooks/model-router.sh`
 - Ejemplo: `examples/hooks/model-router.sh`
 - Docs: `docs/workflows/model-router.md`
+- Debug log: `/tmp/model-router-debug.log`
 
-**Keywords detectadas:**
-- **Opus:** `refactor`, `architecture`, `debug`, `production`, `critical`
-- **Haiku:** `find`, `search`, `list`, queries simples (<15 palabras)
+**Mejoras v2 (robusto):**
+```bash
+# Archivo temporal en lugar de pipe (más estable)
+tmp=$(mktemp)
+cat > "$tmp"
+
+# Trap para cleanup automático
+trap 'rm -f "$tmp" 2>/dev/null; exit 0' ERR EXIT
+
+# jq integrado: trunca 5000 chars + lowercase en un paso
+PROMPT=$(jq -r '.prompt // "" | .[0:5000] | ascii_downcase' < "$tmp")
+```
+
+**Keywords detectadas (bilingüe ES/EN):**
+- **Opus:** `refactor`, `architecture`, `debug`, `production`, `critical`, `refactorizar`, `investigar`
+- **Haiku:** `find`, `search`, `list`, `buscar`, `listar`, queries simples (<15 palabras)
 - **Sonnet:** Todo lo demás (default)
 
-**Salida:** Recomendación como `💡 Sugerencia: Opus` (no cambia modelo automáticamente).
+**Salida:** Recomendación como `[Router] Recomendado: opus - Riesgo detectado`.
 
 ### SessionEnd: session-end-backup.sh
 
