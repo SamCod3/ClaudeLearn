@@ -1,27 +1,53 @@
 #!/bin/bash
 # model-router.sh - Analiza complejidad y recomienda modelo
+# Patrón: lee desde archivo temporal compartido por token-warning.sh
 
-# Debug log
+# Siempre salir con éxito ante cualquier error
+trap 'exit 0' ERR
+
+# Verificar si hay input compartido (del primer hook)
+if [[ -n "$HOOK_INPUT" && -f "$HOOK_INPUT" ]]; then
+  # Leer desde archivo compartido
+  preview=$(head -c 500 "$HOOK_INPUT")
+else
+  # Fallback: leer stdin (no debería ocurrir si token-warning.sh ejecuta primero)
+  preview=$(head -c 500)
+
+  # Early exits tempranos
+  [[ "$preview" == *"base64"* ]] && exit 0
+  [[ "$preview" == *"data:image"* ]] && exit 0
+  [[ "$preview" == *"image/png"* ]] && exit 0
+  [[ "$preview" == *"image/jpeg"* ]] && exit 0
+
+  # Leer resto y crear archivo temporal
+  rest=$(cat)
+  full_input="${preview}${rest}"
+  HOOK_INPUT=$(mktemp)
+  trap 'rm -f "$HOOK_INPUT" 2>/dev/null; exit 0' EXIT
+  echo "$full_input" > "$HOOK_INPUT"
+fi
+
+# Early exit si detecta contenido problemático (imágenes base64)
+[[ "$preview" == *"base64"* ]] && exit 0
+[[ "$preview" == *"data:image"* ]] && exit 0
+[[ "$preview" == *"image/png"* ]] && exit 0
+[[ "$preview" == *"image/jpeg"* ]] && exit 0
+
+# Debug log (solo si pasó el filtro)
 exec 2>/tmp/model-router-debug.log
 
-# Siempre salir con éxito
-trap 'rm -f "$tmp" 2>/dev/null; exit 0' ERR EXIT
-
-# Guardar en temp
-tmp=$(mktemp)
-cat > "$tmp"
-
-INPUT_SIZE=$(wc -c < "$tmp" | tr -d ' ')
+# Obtener tamaño del input
+INPUT_SIZE=$(wc -c < "$HOOK_INPUT" | tr -d ' ')
 echo "Input size: $INPUT_SIZE" >&2
 
 # Early exit si muy grande
-if [[ $INPUT_SIZE -gt 50000 ]]; then
+if [[ $INPUT_SIZE -ge 60000 ]]; then
     echo "Early exit: too large" >&2
     exit 0
 fi
 
 # Extraer prompt con jq
-PROMPT=$(jq -r '.prompt // "" | .[0:5000] | ascii_downcase' < "$tmp" 2>/dev/null)
+PROMPT=$(jq -r '.prompt // "" | .[0:5000] | ascii_downcase' < "$HOOK_INPUT" 2>/dev/null || echo "")
 echo "Prompt length: ${#PROMPT}" >&2
 
 [[ -z "$PROMPT" ]] && exit 0
