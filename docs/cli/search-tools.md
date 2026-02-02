@@ -129,46 +129,36 @@ ast-grep --pattern 'session' --lang bash
 - **fd**: búsqueda de archivos - PREFERIR sobre Glob
 ```
 
-### 2. Hook PreToolUse (opcional)
+### 2. Hook PreToolUse (NO recomendado)
 
-Para recordar a Claude que use ugrep:
+⚠️ **Advertencia sobre overhead:**
 
-**`~/.claude/hooks/force-ugrep.sh`:**
+Los hooks PreToolUse se ejecutan ANTES de cada tool use. En sesiones largas con muchas herramientas (50+ tool uses), el overhead acumulativo aumenta significativamente el consumo de tokens.
+
+**Ejemplo de hook (no usar en producción):**
 ```bash
 #!/bin/bash
 input=$(cat)
 tool=$(echo "$input" | jq -r '.tool // empty')
 
 if [ "$tool" = "Grep" ]; then
-  echo "💡 Recordatorio: usar Bash con 'ug' (ugrep) en vez de Grep tool"
-  echo "   Ejemplo: ug \"pattern\" --include='*.ext'"
+  echo "💡 Recordatorio: usar Bash con 'ug' (ugrep)"
 fi
 ```
 
-**Activar en settings.json:**
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/force-ugrep.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+**Problema:**
+- 50 tool uses × hook = 50 ejecuciones
+- Cada ejecución añade contexto
+- Consumo de tokens 2-3x mayor
+
+**Mejor alternativa:** Confiar solo en CLAUDE.md (sin hooks).
 
 ### 3. Resultado
 
-Con esta configuración:
+Con solo CLAUDE.md (sin hooks):
 - **CLAUDE.md** → Instruye a Claude a usar `ug`
-- **Hook** → Recordatorio activo si intenta usar Grep
-- **Efectividad**: ~95% de uso automático de ugrep
+- **Sin overhead** → Zero tokens extras por tool use
+- **Efectividad**: ~90% de uso automático (suficiente)
 
 ## Recursos
 
