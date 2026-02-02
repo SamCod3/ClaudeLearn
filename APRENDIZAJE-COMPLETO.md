@@ -1078,6 +1078,345 @@ Ver detalles en: `docs/workflows/auto-router-proxy.md`
 
 ---
 
+# PERSONALIZACIÓN VISUAL DEL CLI
+
+## Spinner Verbs (Nativo desde v2.1.23)
+
+Personaliza los mensajes de estado ("Thinking…", "Working…").
+
+**Ubicación:** `~/.claude/settings.json`
+
+```json
+{
+  "spinnerVerbs": {
+    "mode": "replace",
+    "verbs": ["Cocinando…", "Preparando…", "Destilando…"]
+  }
+}
+```
+
+## TweakCC (Comunidad)
+
+Herramienta de Piebald-AI para personalización avanzada.
+
+```bash
+npx tweakcc
+```
+
+**Configuración:** `~/.tweakcc/config.json`
+
+**userMessageDisplay:**
+```json
+{
+  "format": " > {} ",
+  "backgroundColor": "none",
+  "borderStyle": "round",
+  "borderColor": "rgb(148,148,148)"
+}
+```
+
+**Importante:** No consume contexto (solo visual).
+
+Ver detalles completos en: `docs/cli/customization.md`
+
+---
+
+# 11. SISTEMA SWARM MULTI-AGENTE
+
+Sistema de orquestación que permite ejecutar múltiples agentes especializados en paralelo para tareas complejas.
+
+## Arquitectura
+
+```
+/swarm "Build TODO app with React frontend and Express backend"
+              ↓
+    [swarm-orchestrator.sh]
+    - Analiza con Claude Haiku
+    - Genera task board SQLite
+    - Calcula niveles de ejecución (topological sort)
+              ↓
+         [Task Board SQLite]
+         ~/.claude-swarm/board.db
+         - tasks: estado, deps, outputs
+              ↓
+    [Ejecución por niveles]
+    Level 0: [task sin deps] (secuencial/paralelo)
+    Level 1: [tasks que dependen de L0] (paralelo)
+    Level N: [tasks que dependen de L(N-1)]
+              ↓
+    [agent-launcher.sh]
+    - Spawn agente con CLI + system prompt
+    - Monitoreo con timeout
+    - Retry automático (hasta 3 intentos)
+              ↓
+    [Agentes especializados]
+    - backend-builder (Sonnet): APIs, auth, DB
+    - frontend-builder (Sonnet): React, TypeScript, UI
+    - test-writer (Haiku): Jest, coverage
+    - doc-writer (Haiku): README, API docs
+```
+
+## Uso básico
+
+```bash
+/swarm "Create authentication system with JWT"
+/swarm "Build dashboard with charts and filters"
+/swarm-status                    # Estado de última sesión
+/swarm-status <session_id>       # Estado de sesión específica
+/swarm-retry <task_id>           # Reintentar tarea fallida
+```
+
+## Scripts principales
+
+### ~/.claude/scripts/swarm-orchestrator.sh
+```bash
+# Fase 1: Análisis
+claude --model haiku << EOF
+  Descompone esta tarea en tareas atómicas con dependencias:
+  "$REQUEST"
+EOF
+# Output: JSON con tasks[], strategy
+
+# Fase 2: Población task board
+task-board.sh init "$SESSION_ID"
+for task in tasks; do
+  task-board.sh create-task "$SESSION_ID" "$task_json"
+done
+
+# Fase 3: Topological sort
+levels=$(compute_execution_levels "$tasks")
+# Level 0: sin deps
+# Level N: deps en Level < N
+
+# Fase 4: Ejecución paralela
+for level in levels; do
+  for task in level.tasks; do
+    agent-launcher.sh launch "$task_id" &  # Paralelo dentro del nivel
+  done
+  wait  # Esperar a que todo el nivel termine
+done
+```
+
+### ~/.claude/scripts/agent-launcher.sh
+
+**Timeout y retry:**
+```bash
+DEFAULT_TIMEOUT=300        # 5 min (o 1.5x estimated_minutes)
+DEFAULT_MAX_RETRIES=2      # Reintentos automáticos
+RETRY_DELAY=3              # Segundos entre reintentos
+
+# Tipos de error
+ERROR_TIMEOUT="timeout"        # Retriable
+ERROR_CRASH="crash"            # Retriable
+ERROR_INVALID_OUTPUT="..."     # Retriable
+ERROR_PERMISSION="..."         # NO retriable
+```
+
+**Spawn de agente:**
+```bash
+echo "$agent_prompt" | claude \
+  --print \
+  --model "$model" \
+  --append-system-prompt "$agent_template" \
+  --dangerously-skip-permissions \
+  --no-session-persistence \
+  > "$output_file" 2> "$log_file" &
+
+# Polling para timeout (no usa GNU timeout)
+waited=0
+while kill -0 "$pid" && [ $waited -lt $timeout_secs ]; do
+  sleep 1; ((waited++))
+done
+```
+
+### ~/.claude/scripts/task-board.sh
+
+**Schema SQLite:**
+```sql
+CREATE TABLE tasks (
+  id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  agent_type TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',  -- pending|in_progress|completed|failed|blocked
+  dependencies TEXT DEFAULT '[]', -- JSON array
+  output TEXT,                    -- JSON del agente
+  PRIMARY KEY (session_id, id)
+);
+```
+
+**Comandos:**
+```bash
+task-board.sh init <session_id>
+task-board.sh create-task <session_id> <task_json>
+task-board.sh update-task <task_id> <status> [output_json]
+task-board.sh get-task <task_id> [session_id]
+task-board.sh list-tasks <session_id> [status_filter]
+task-board.sh export <session_id>
+```
+
+## Agentes especializados
+
+Definidos en `~/.claude/skills/swarm/agents/*.md`:
+
+### backend-builder.md
+```markdown
+You are a backend development specialist.
+
+**Expertise:**
+- RESTful APIs (Express, FastAPI)
+- Authentication (JWT, OAuth, sessions)
+- Database design (SQL, ORMs)
+- Validation and error handling
+
+**Output format:**
+Return JSON with:
+{
+  "status": "completed|failed",
+  "files_created": ["api/auth.ts"],
+  "files_modified": ["app.ts"],
+  "summary": "Implemented JWT auth with bcrypt",
+  "next_steps": ["Add rate limiting"],
+  "errors": []
+}
+```
+
+### Otros agentes
+- **frontend-builder**: React, TypeScript, Tailwind, component patterns
+- **test-writer**: Jest, coverage, mocks, edge cases
+- **doc-writer**: README, API docs, docstrings
+
+## Integración con Sistema de Backup
+
+**Hooks automáticos:**
+
+1. **swarm-checkpoint.sh** (PostToolUse)
+   - Detecta ejecución de agent-launcher/task-board
+   - Crea checkpoint del task board
+   - Mantiene últimos 5 checkpoints
+
+2. **session-end-backup.sh** (SessionEnd)
+   - Detecta sesiones swarm en `~/.claude-swarm/sessions/$SESSION_ID/`
+   - Copia todo a `~/.claude-backup/{project}/swarm/$SESSION_ID/`
+   - Agrega metadata:
+     ```json
+     {
+       "swarm_session": true,
+       "swarm_stats": {
+         "total": 5,
+         "completed": 4,
+         "failed": 1,
+         "pending": 0
+       }
+     }
+     ```
+
+3. **index-session.sh** (background)
+   - Indexa tareas en tabla FTS5 `swarm_tasks_fts`
+   - Campos: session_id, task_id, agent_type, title, description, summary
+   - Permite búsqueda rápida por keyword o tipo de agente
+
+**Búsqueda de sesiones swarm:**
+```bash
+# Buscar tareas por keyword
+sqlite3 ~/.claude-backup/sessions.db \
+  "SELECT session_id, task_id, title FROM swarm_tasks_fts WHERE swarm_tasks_fts MATCH 'auth'"
+
+# Buscar por tipo de agente
+sqlite3 ~/.claude-backup/sessions.db \
+  "SELECT * FROM swarm_tasks_fts WHERE agent_type = 'backend-builder'"
+
+# Ver sesiones swarm de un proyecto
+jq 'select(.swarm_session) | .session_id' ~/.claude-backup/ClaudeLearn/*.json
+```
+
+## Manejo de errores
+
+**Cascade de fallos:**
+```bash
+# Si tarea t1 falla, marcar dependientes como blocked
+if task_failed "t1"; then
+  dependents=$(find-dependents "t1")  # [t2, t3]
+  for dep in $dependents; do
+    update-task "$dep" "blocked" "Dependency t1 failed"
+  done
+fi
+```
+
+**Archivos de diagnóstico:**
+```
+~/.claude-swarm/sessions/{session_id}/
+  ├── t1.output          # Respuesta completa del agente
+  ├── t1.log             # stderr del CLI
+  ├── t1.error           # Metadata del error
+  │   {
+  │     "error_type": "timeout",
+  │     "exit_code": "124",
+  │     "attempt": "2",
+  │     "log_snippet": "..."
+  │   }
+  └── orchestrator.log   # Log completo de ejecución
+```
+
+## Beneficios
+
+**Reducción de tiempo (paralelismo):**
+```
+Secuencial: Frontend (30min) → Backend (25min) → Tests (15min) = 70min
+Paralelo:   [Frontend + Backend] (30min) → Tests (15min) = 45min
+Ahorro: 35%
+```
+
+**Reducción de contexto (especialización):**
+```
+Manual:  ~150K tokens (contexto completo en un solo agente)
+Swarm:   ~95K tokens (orchestrator + agentes especializados)
+Ahorro:  37%
+```
+
+**Costos estimados:**
+```
+Análisis (Haiku):      ~$0.01
+Backend agent (Sonnet): ~$0.20
+Frontend agent (Sonnet): ~$0.30
+Test agent (Haiku):     ~$0.05
+Docs agent (Haiku):     ~$0.03
+
+Total proyecto mediano: ~$2-5 (vs $15-30 manual)
+```
+
+## Troubleshooting
+
+**Tarea falla con "invalid_output":**
+- Verificar `t1.output` - debe contener JSON válido
+- Revisar `t1.log` - errores del CLI
+- El agente debe terminar con JSON en formato especificado
+
+**Timeout constante:**
+- Aumentar `estimated_minutes` en task definition
+- Timeout = `max(120, estimated_minutes * 90)` segundos
+- O pasar timeout manual: `agent-launcher.sh launch t1 $dir $cwd 3 600`
+
+**Dependencias no se respetan:**
+- Verificar `dependencies` en JSON de análisis: `["t1", "t2"]`
+- Topological sort debe detectar niveles correctamente
+- Ver logs: `grep "Level" ~/.claude-swarm/sessions/*/orchestrator.log`
+
+**Session ID collision:**
+- Task board usa PRIMARY KEY (session_id, id)
+- `task-board.sh get-task t1 <session_id>` requiere session_id
+- Si se omite, devuelve la tarea más reciente (ORDER BY created_at DESC)
+
+## Extensiones futuras
+
+- [ ] Checkpoint/resume de sesiones largas
+- [ ] Agent memory compartida (vector embeddings)
+- [ ] Cost tracking por sesión
+- [ ] Parallel execution con thread pools
+- [ ] Web UI para monitoreo en tiempo real
+
+---
+
 # RESUMEN: CUÁNDO USAR QUÉ
 
 | Necesidad | Solución |
