@@ -1421,6 +1421,34 @@ Total proyecto mediano: ~$2-5 (vs $15-30 manual)
 - `task-board.sh get-task t1 <session_id>` requiere session_id
 - Si se omite, devuelve la tarea más reciente (ORDER BY created_at DESC)
 
+**Agentes no pueden leer archivos del proyecto (FIXED 2026-02-02):**
+
+*Problema:* Los agentes se lanzaban como CLI independientes sin acceso al contexto del proyecto. El `working_dir` se pasaba como texto pero el CLI ejecutaba desde `~/.claude/scripts/`.
+
+*Solución implementada en `agent-launcher.sh`:*
+1. **Función `get_minimal_context()`** - Extrae contexto mínimo (~800 tokens):
+   - CLAUDE.md (primeras 50 líneas)
+   - Estructura de directorios (30 items)
+   - Metadata del proyecto (package.json, build.gradle, Cargo.toml, etc.)
+
+2. **CD al working_dir** antes de ejecutar el CLI:
+   ```bash
+   cd "$working_dir" || { log_error "..."; exit 1; }
+   ```
+
+3. **Prompt mejorado** con instrucciones para usar paths relativos
+
+4. **Templates de agentes actualizados** con sección "Working Context"
+
+*Verificación:*
+```bash
+# Ver si el agente ejecuta desde el directorio correcto
+grep "Working from directory" ~/.claude-swarm/sessions/*/orchestrator.log
+
+# Ver contexto incluido
+head -50 ~/.claude-swarm/sessions/*/t1.output
+```
+
 ## Extensiones futuras
 
 - [ ] Checkpoint/resume de sesiones largas
