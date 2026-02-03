@@ -29,7 +29,7 @@ const CONFIG = {
   },
 
   // Umbrales
-  longContextThreshold: 60000,
+  longContextThreshold: 30000,
   shortPromptThreshold: 50,
 
   // Keywords
@@ -37,7 +37,9 @@ const CONFIG = {
     risk: /\b(production|critical|security|migration|deploy|produccion|critico|urgente|seguridad|migracion|desplegar|peligroso)\b/i,
     arch: /\b(refactor|redesign|restructure|architecture|refactorizar|rediseña|reestructurar|desacoplar|modularizar)\b/i,
     debug: /\b(debug|root.?cause|investigate|trace|depurar|investigar|por.?que.?(no.?)?funciona|causa.?raiz|analizar)\b/i,
-    simple: /\b(find|search|list|where.?is|what.?is|show|buscar|busca|encontrar|listar|mostrar|donde.?esta|que.?es|dame)\b/i
+    simple: /\b(find|search|list|where.?is|what.?is|show|buscar|busca|encontrar|listar|mostrar|donde.?esta|que.?es|dame)\b/i,
+    complexity: /\b(complex|complejo|intricate|sophisticated|system.wide|architecture|large.scale|multi.?layer|integration)\b/i,
+    planning: /\b(plan|design|structure|strategy|approach|metodología|estrategia|arquitectura)\b/i
   }
 };
 
@@ -125,9 +127,6 @@ function isBackgroundTask(body) {
     if (systemPrompt.includes('subagent') || systemPrompt.includes('background')) {
       return true;
     }
-  }
-  if (body.model && body.model.includes('haiku')) {
-    return true;
   }
   return false;
 }
@@ -243,50 +242,61 @@ function selectModel(body) {
     return { model: originalModel, tier: 'code', reason: 'non-interactive mode' };
   }
 
-  // Background tasks: siempre haiku (antes del override para ignorarlo)
-  if (isBackgroundTask(body)) {
-    return { model: CONFIG.models.explore, tier: 'explore', reason: 'background task' };
-  }
+  let tier = 'reason';
+  let reason = 'default (fallback to opus)';
 
-  // Override manual: <!-- model: opus/sonnet/haiku -->
-  const overrideTier = parseModelOverride(lastMessage);
-  if (overrideTier) {
-    return { model: CONFIG.models[overrideTier], tier: overrideTier, reason: 'manual override' };
-  }
-
-  let tier = 'code';
-  let reason = 'default';
-
-  // Si Claude usó EnterPlanMode en respuesta anterior, forzar Opus
+  // PRIORITY 1: Si Claude usó EnterPlanMode en respuesta anterior, forzar Opus
   if (enterPlanModeDetected) {
     enterPlanModeDetected = false; // Reset para no afectar requests posteriores
     return { model: CONFIG.models.reason, tier: 'reason', reason: 'entering plan mode (from response)' };
   }
 
-  // Plan Mode: análisis profundo, diseño arquitectónico
+  // PRIORITY 2: Plan Mode - análisis profundo, diseño arquitectónico
   if (isPlanMode(body)) {
     return { model: CONFIG.models.reason, tier: 'reason', reason: 'plan mode' };
   }
 
-  // Auto-Accept: sin supervisión humana, requiere máxima precisión
+  // PRIORITY 3: Auto-Accept - sin supervisión humana, requiere máxima precisión
   if (isAutoAcceptMode(body)) {
     return { model: CONFIG.models.reason, tier: 'reason', reason: 'auto-accept mode' };
   }
 
+  // PRIORITY 4: Risk keywords - seguridad, producción, crítico
+  if (CONFIG.keywords.risk.test(lastMessage)) {
+    return { model: CONFIG.models.reason, tier: 'reason', reason: 'risk keywords detected' };
+  }
+
+  // PRIORITY 5: Long context - contextos grandes requieren análisis profundo
   if (tokens > CONFIG.longContextThreshold) {
     return { model: CONFIG.models.reason, tier: 'reason', reason: `long context (${tokens} tokens)` };
   }
 
-  if (CONFIG.keywords.risk.test(lastMessage)) {
-    tier = 'reason';
-    reason = 'risk keywords detected';
-  } else if (CONFIG.keywords.arch.test(lastMessage) && CONFIG.keywords.debug.test(lastMessage)) {
-    tier = 'reason';
-    reason = 'architecture + debugging';
-  } else if (CONFIG.keywords.simple.test(lastMessage) &&
-             lastMessage.length < CONFIG.shortPromptThreshold &&
-             !CONFIG.keywords.arch.test(lastMessage) &&
-             !CONFIG.keywords.debug.test(lastMessage)) {
+  // PRIORITY 6: Architecture + complexity keywords
+  if (CONFIG.keywords.complexity.test(lastMessage) || CONFIG.keywords.planning.test(lastMessage)) {
+    return { model: CONFIG.models.reason, tier: 'reason', reason: 'complex task detected' };
+  }
+
+  // PRIORITY 7: Architecture + debugging
+  if (CONFIG.keywords.arch.test(lastMessage) && CONFIG.keywords.debug.test(lastMessage)) {
+    return { model: CONFIG.models.reason, tier: 'reason', reason: 'architecture + debugging' };
+  }
+
+  // PRIORITY 8: Background tasks - siempre haiku
+  if (isBackgroundTask(body)) {
+    return { model: CONFIG.models.explore, tier: 'explore', reason: 'background task' };
+  }
+
+  // PRIORITY 9: Override manual - respeta elección del usuario
+  const overrideTier = parseModelOverride(lastMessage);
+  if (overrideTier) {
+    return { model: CONFIG.models[overrideTier], tier: overrideTier, reason: 'manual override' };
+  }
+
+  // PRIORITY 10: Simple query - búsquedas cortas
+  if (CONFIG.keywords.simple.test(lastMessage) &&
+      lastMessage.length < CONFIG.shortPromptThreshold &&
+      !CONFIG.keywords.arch.test(lastMessage) &&
+      !CONFIG.keywords.debug.test(lastMessage)) {
     tier = 'explore';
     reason = 'simple query';
   }
