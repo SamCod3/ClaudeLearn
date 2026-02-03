@@ -285,6 +285,87 @@ npm run build
 | Debug | Logs terminal | Tool explain |
 | Mantenimiento | Difícil | Fácil (módulos) |
 
+## Servicio macOS (launchd)
+
+El proxy se configura como servicio para auto-iniciar al login:
+
+```
+~/.claude/mcp-servers/model-router/proxy-thin.cjs
+```
+
+### Configuración en launchd
+
+```
+~/.Library/LaunchAgents/com.claude.router.plist
+```
+
+**Características:**
+- `RunAtLoad: true` → inicia al login
+- `KeepAlive: true` → reinicia si crashea
+- Logs en `~/.claude/mcp-servers/model-router/proxy.log`
+- Escucha en puerto 3456 (proxy), 3457 (MCP API)
+
+### Ver en vivo
+
+```bash
+tail -f ~/.claude/mcp-servers/model-router/proxy.log
+```
+
+Formato del log:
+```
+[HH:MM:SS] modelo-original → modelo-usado (razón)
+[16:17:04] claude-opus → claude-haiku (background task)
+[16:14:24] claude-haiku → claude-opus (architecture + debugging)
+```
+
+## Fixes Realizados
+
+### Background Task Detection (2026-02-03)
+
+**Problema:** El proxy enviaba `system` como array de objetos pero el MCP esperaba string.
+
+**Solución:** Convertir array a string en proxy-thin.cjs:
+
+```javascript
+let systemText = '';
+if (typeof body.system === 'string') {
+  systemText = body.system;
+} else if (Array.isArray(body.system)) {
+  systemText = body.system
+    .filter(block => block.type === 'text')
+    .map(block => block.text)
+    .join('\n');
+}
+```
+
+**Resultado:** Ahora detecta correctamente:
+- `run_in_background` → haiku
+- `Plan mode is active` → opus
+- Keywords bilingües → routing inteligente
+
+### Timestamps en Logs
+
+Formato actualizado de logs para debugging:
+```javascript
+const now = new Date();
+const time = now.toTimeString().split(' ')[0];
+console.log(`[${time}] ${originalModel} → ${decision.model} (${decision.reason})`);
+```
+
+## Métricas Actuales
+
+**Estadísticas acumuladas:**
+- Requests procesados: 173+
+- Tokens ahorrados: 1.7M+ (~$20 USD)
+- Accuracy ML: 100%
+- Tier distribution: 95% code (sonnet), 4% explore (haiku), 1% reason (opus)
+
+**Patrones detectados:**
+- Background tasks → siempre haiku
+- Plan mode → siempre opus
+- Risk keywords → siempre opus
+- Contextos >60k → opus si hay complejidad, sonnet si no
+
 ## Archivos Relacionados
 
 - Proxy original: `examples/proxy/router.js`
