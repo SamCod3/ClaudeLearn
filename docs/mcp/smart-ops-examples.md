@@ -606,6 +606,65 @@ Basadas en uso real en sesiones de desarrollo:
 
 ---
 
+## MCP Fetch - Documentación Web
+
+**Instalación:**
+```bash
+brew install uv  # si no tienes uvx
+claude mcp add fetch -- uvx mcp-server-fetch
+```
+
+**Uso:** Cuando Claude necesita consultar documentación externa:
+- Descarga la página web
+- Elimina HTML basura (ads, menús, scripts, CSS)
+- Convierte a Markdown limpio
+- **Ahorro:** ~95% tokens vs HTML crudo
+
+**Ejemplo:**
+```
+Usuario: "¿Cómo uso useEffect en React?"
+Claude: [usa fetch para leer docs de React]
+→ Recibe ~500 tokens de Markdown limpio
+→ En lugar de ~15000 tokens de HTML con ads
+```
+
+---
+
+## Reglas Agresivas para CLAUDE.md
+
+Para maximizar el ahorro, añadir estas reglas al `~/.claude/CLAUDE.md`:
+
+```markdown
+## MCP Smart-Ops (OBLIGATORIO)
+
+### Reglas de Lectura (ESTRICTAS)
+1. **PROHIBIDO Read a ciegas**: NUNCA `Read` completo sin confirmar relevancia
+   - Primero: `grep_smart mode: count` para ubicar
+   - Luego: `read_smart mode: lines` solo rango necesario
+
+2. **Regla del PEEK**: Antes de leer >100 líneas
+   - Usar `read_smart mode: summary` (10 primeras + 10 últimas)
+   - Confirmar que es el archivo correcto
+
+3. **Planificación conservadora**: En fase de Plan
+   - NO leer todos los archivos para "entender el proyecto"
+   - Usar `project_overview` primero
+   - Buscar evidencia específica, no barridos generales
+
+### Prohibiciones Absolutas
+❌ `Read` completo en archivos >100 líneas sin justificación
+❌ `Grep` con `output_mode: "content"` (usar `grep_smart`)
+❌ Múltiples `Glob + Read` (usar `project_overview`)
+❌ Leer archivos "por si acaso" en fase de planificación
+```
+
+**Por qué funcionan:**
+- Las reglas negativas ("NUNCA hacer X") son más efectivas que las positivas
+- Fuerzan el flujo: buscar → confirmar → leer parcialmente
+- Atacan específicamente el problema de "leer de más" en planificación
+
+---
+
 ## Referencias
 
 - Documentación MCP: [session-manager.md](./session-manager.md)
