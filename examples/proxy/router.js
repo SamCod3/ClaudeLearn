@@ -34,12 +34,12 @@ const CONFIG = {
 
   // Keywords
   keywords: {
-    risk: /\b(production|critical|security|migration|deploy|produccion|critico|urgente|seguridad|migracion|desplegar|peligroso)\b/i,
-    arch: /\b(refactor|redesign|restructure|architecture|refactorizar|rediseña|reestructurar|desacoplar|modularizar)\b/i,
-    debug: /\b(debug|root.?cause|investigate|trace|depurar|investigar|por.?que.?(no.?)?funciona|causa.?raiz|analizar)\b/i,
-    simple: /\b(find|search|list|where.?is|what.?is|show|buscar|busca|encontrar|listar|mostrar|donde.?esta|que.?es|dame)\b/i,
-    complexity: /\b(complex|complejo|intricate|sophisticated|system.wide|architecture|large.scale|multi.?layer|integration)\b/i,
-    planning: /\b(plan|design|structure|strategy|approach|metodología|estrategia|arquitectura)\b/i
+    risk: /\b(production|critical|security|migration|deploy|produccion|critico|urgente|seguridad|migracion|desplegar|peligroso|vulnerabilidad|error.*critico|fallo.*critico|problema.*serio|issue.*serio|bug.*critico|datos.*sensibles|privacidad|confidencial|acceso.*no.?autorizado|breach|exploit)\b/i,
+    arch: /\b(refactor|redesign|restructure|architecture|refactorizar|redisena|reestructurar|desacoplar|modularizar|refactorizacion|reorganizar|reescribir|reimplement|mejorar.*arquitect|cambiar.*diseno|reorganiz|reestructur|separar.*responsabilidades|principios.*solid|patrones.*diseno|patron.*arquitect|componentes|capas|modulos)\b/i,
+    debug: /\b(debug|root.?cause|investigate|trace|depurar|investigar|por.?que.?(no.?)?funciona|causa.?raiz|analizar|diagnosticar|error|fallo|no.?funciona|crash|exception|stack.?trace|logs?|traza|rastrear|seguimiento|buscar.*problema|encontrar.*bug|que.?esta.?pasando|que.?falla|por.?que.?falla|por.?que.?no)\b/i,
+    simple: /\b(find|search|list|where.?is|what.?is|show|buscar|busca|encontrar|listar|mostrar|donde.?esta|que.?es|dame|list|get|obten|dime|cual|cuales|ver|visualizar|mostrame|enumera|dame.*lista|necesito.*saber|cual.?es)\b/i,
+    complexity: /\b(complex|complejo|intricate|sofisticado|sophisticated|system.wide|system.*wide|architecture|large.scale|multi.?layer|integration|integr|complicado|dificil|desafiante|reto|challenge|challenging|intrincado|enredado|enmaranado|entrelazado|interdependencias|acopladas|acoplamiento|circular.*depend|dependencies|dependencias)\b/i,
+    planning: /\b(plan|design|structure|strategy|approach|metodologia|estrategia|arquitectura|diseno|planificacion|planificar|estructura|estrategico|approach|metodo|manera|forma|como.*implementar|como.*hacer|como.*disenar|propuesta|solucion|esquema|esquematica|blueprint|roadmap|flujo|workflow|proceso|pipeline)\b/i
   }
 };
 
