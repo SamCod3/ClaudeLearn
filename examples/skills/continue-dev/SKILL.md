@@ -4,11 +4,15 @@ description: Cargar contexto de sesión anterior del proyecto actual
 allowed-tools: Read, Bash, Glob
 ---
 
-Listar sesiones anteriores del proyecto actual y cargar el contexto de la que el usuario elija.
+Listar sesiones anteriores del proyecto actual CON FECHA Y HORA en una tabla clara, permitiendo al usuario elegir cuál cargar.
 
-## Paso 1: Obtener sesiones del proyecto
+**IMPORTANTE: El skill SIEMPRE ejecuta Paso 1 PRIMERO (muestra la tabla completa) ANTES de hacer preguntas.**
 
-Ejecuta este comando para listar las sesiones desde backups:
+## Paso 1: Obtener y mostrar tabla de sesiones (PRIMERO)
+
+**Este es el PRIMER paso y es OBLIGATORIO - se ejecuta ANTES de hacer preguntas.**
+
+El skill ejecuta este comando para listar las sesiones desde backups y mostrar una tabla con FECHA/HORA:
 
 ```bash
 PROJECT_NAME=$(basename "$PWD")
