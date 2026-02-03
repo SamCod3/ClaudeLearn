@@ -665,6 +665,38 @@ Para maximizar el ahorro, añadir estas reglas al `~/.claude/CLAUDE.md`:
 
 ---
 
+## Directorios Prohibidos
+
+Añadir al CLAUDE.md para evitar escaneo de basura:
+
+```markdown
+## Directorios Prohibidos (NO explorar)
+- `node_modules/` - dependencias npm
+- `.git/` - historial git interno
+- `dist/`, `build/`, `out/` - archivos compilados
+- `*.min.js`, `*.bundle.js` - archivos minificados
+- `.next/`, `.nuxt/`, `.cache/` - caches de frameworks
+- `vendor/`, `packages/` - dependencias externas
+- `coverage/` - reportes de tests
+```
+
+**Impacto:** Evita que Claude explore miles de archivos irrelevantes al hacer `project_overview` o búsquedas.
+
+---
+
+## Tool Search (Futuro)
+
+**Estado:** No disponible en Claude Code CLI (v2.1.29)
+- [Issue #12836](https://github.com/anthropics/claude-code/issues/12836) - 105 upvotes
+- Reduciría 85% del bloat de definiciones MCP
+- Betas necesarios: `advanced-tool-use-2025-11-20`, `mcp-client-2025-11-20`
+
+**Workarounds actuales:**
+- [mcp-proxy](https://github.com/TBXark/mcp-proxy)
+- [mcp-gateway](https://github.com/pleaseai/mcp-gateway)
+
+---
+
 ## Referencias
 
 - Documentación MCP: [session-manager.md](./session-manager.md)
