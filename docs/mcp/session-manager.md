@@ -27,9 +27,13 @@ MCP server personalizado para gestión de sesiones de Claude Code. Centraliza ba
 | `session_search` | Búsqueda FTS5 en historial | Claude |
 | `session_list` | Listar sesiones por proyecto | Claude |
 | `session_get_context` | Cargar contexto de sesión | Claude |
-| `session_save` | Guardar sesión + indexar | Hooks |
-| `backup_create` | Crear backup incremental | Hooks |
+| `session_save` | Guardar sesión + indexar (incluye swarm) | Hooks |
+| `backup_create` | Backup incremental + checkpoint swarm | Hooks |
 | `analyze_structure` | Búsqueda AST con ast-grep | Claude |
+| `swarm_list_tasks` | Listar tareas de board.db | Claude |
+| `swarm_get_task` | Obtener tarea específica | Claude |
+| `swarm_search` | Búsqueda FTS5 de tareas históricas | Claude |
+| `swarm_stats` | Estadísticas de sesiones swarm | Claude |
 
 ## Base de datos
 
@@ -132,6 +136,60 @@ npm run build
 | Debugging | Logs dispersos | Centralizado |
 | Ahorro contexto | ~0% | ~95% |
 | Extensibilidad | Limitada | Alta |
+
+## Funciones Swarm
+
+### Indexado automático
+Cuando `session_save` detecta una sesión swarm (`~/.claude-swarm/sessions/{session_id}` existe):
+1. Lee tareas de `board.db`
+2. Indexa en `swarm_tasks_fts` para búsqueda histórica
+3. Extrae summary del output JSON de cada tarea
+
+### Checkpoint en backups
+`backup_create` crea snapshot del board:
+```json
+{
+  "session_id": "swarm_1770032370",
+  "timestamp": "2026-02-03T10:00:00Z",
+  "tasks": [...],
+  "agents": [...],
+  "outputs": [...]
+}
+```
+Guardado en: `~/.claude-swarm/sessions/{session_id}/board-snapshot.json`
+
+### Queries del board
+```typescript
+// Listar tareas de sesión activa
+swarm_list_tasks({
+  session_id: "swarm_1770032370",
+  status: "completed"  // opcional
+})
+
+// Obtener tarea específica
+swarm_get_task({
+  session_id: "swarm_1770032370",
+  task_id: "t1"
+})
+
+// Buscar en historial (FTS5)
+swarm_search({
+  query: "API endpoint authentication",
+  agent_type: "backend-builder",  // opcional
+  limit: 10
+})
+
+// Estadísticas
+swarm_stats({ session_id: "swarm_1770032370" })  // por sesión
+swarm_stats({})  // global
+```
+
+### Ahorro de contexto
+- **Antes:** 29 invocaciones `sqlite3` desde bash (~500 tokens)
+- **Después:** API MCP centralizada (0 tokens)
+- **Indexado:** Automático al guardar sesión (0 tokens)
+
+---
 
 ## Ejemplo de uso
 
