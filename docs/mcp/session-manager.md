@@ -277,15 +277,67 @@ glob_stats({
 // Retorna: path, size, date, lines, first_line por archivo
 ```
 
+### Ejemplos Before/After
+
+#### Caso 1: Ver resumen de archivo grande
+
+❌ **Antes** (~2000 tokens):
+```typescript
+Read({ file_path: "APRENDIZAJE-COMPLETO.md" })
+// Retorna 1516 líneas completas
+```
+
+✅ **Ahora** (~100 tokens):
+```typescript
+read_smart({
+  file_path: "APRENDIZAJE-COMPLETO.md",
+  mode: "summary",
+  head_lines: 10,
+  tail_lines: 10
+})
+// Retorna solo primeras/últimas 10 líneas + conteo total
+```
+
+#### Caso 2: Contar TODOs en proyecto
+
+❌ **Antes** (~1500 tokens):
+```typescript
+Grep({ pattern: "TODO", output_mode: "content" })
+// Retorna todas las líneas con "TODO" de todos los archivos
+```
+
+✅ **Ahora** (~200 tokens):
+```typescript
+grep_smart({ pattern: "TODO", mode: "count", include: "*.ts" })
+// Retorna solo conteo por archivo: { "app.ts": 5, "utils.ts": 2 }
+```
+
+#### Caso 3: Analizar funciones de módulo
+
+❌ **Antes** (~800 tokens):
+```typescript
+Read({ file_path: "router.js" })
+// Retorna 407 líneas completas para parsear manualmente
+```
+
+✅ **Ahora** (~100 tokens):
+```typescript
+code_metrics({ file_path: "router.js", metrics: ["functions", "loc"] })
+// Retorna metadata estructurada: { functions: 13, loc: 297 }
+```
+
 ### Comparativa de Ahorro
 
 | Operación | Tokens antes | Con MCP | Ahorro |
 |-----------|--------------|---------|--------|
-| Leer 500 líneas | ~2000 | ~200 | 90% |
+| Leer archivo 1500 líneas | ~2000 | ~100 | 95% |
 | Grep 20 archivos | ~1500 | ~300 | 80% |
 | Análisis imports | ~800 | ~100 | 87% |
 | Explorar estructura | ~1000 | ~150 | 85% |
 | Diff 10 archivos | ~2000 | ~400 | 80% |
+| Glob metadata | ~600 | ~200 | 67% |
+
+**Ahorro promedio: 82%**
 
 ---
 
