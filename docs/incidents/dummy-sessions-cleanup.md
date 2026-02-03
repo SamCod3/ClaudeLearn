@@ -3,7 +3,7 @@
 **Fecha:** 2026-02-03
 **Duración:** ~5 horas (10:25 → 16:43 CET)
 **Impacto:** 33 sesiones dummy en DB + 66 archivos innecesarios
-**Estado:** ✅ **RESUELTO**
+**Estado:** ⚠️ **PARCIALMENTE RESUELTO - PROBLEMA PERSISTENTE**
 
 ## Síntomas
 
@@ -121,8 +121,29 @@ Sesiones reales intactas:
 - `~/.claude-backup/sessions.db` (limpieza de 33 registros)
 - `~/.claude-backup/ClaudeLearn/` (eliminación de 66 archivos)
 
+## ⚠️ PROBLEMA PERSISTENTE
+
+Después de la limpieza inicial, **más dummies siguen siendo creados** en rangos similares:
+- Lote 1: 16:22:56-16:22:59 ✅ LIMPIADO
+- Lote 2: 10:26:00-10:26:04 ✅ LIMPIADO
+- Lote 3: 10:25:57-10:25:59 ✅ LIMPIADO
+- Lote 4: Nueva detección (fecha desconocida) - CONTINÚA
+
+**Posibles causas a investigar:**
+1. Hook de SessionStart/SessionInit sin transcript válido
+2. MCP session_list creando entradas temporales
+3. Script de migración/reindex con loop infinito
+4. CloudPunk/autosave disparándose sin control
+
+**Acción requerida:**
+- [ ] Revisar logs del MCP server (`stderr` de la inicialización)
+- [ ] Monitorear eventos de SessionStart
+- [ ] Agregar logging a `indexInFTS5` para ver cuándo se crea cada sesión
+- [ ] Considerar deshabilitar hooks de SessionStart hasta encontrar la causa
+
 ## Lecciones Aprendidas
 
 ✅ Validar entrada en MCP tools (nunca asumir transcripts válidos)
 ✅ Agregar logs claros para debugging de creación de sesiones
 ✅ Considerar duración < 100ms como indicador de sesión incompleta
+⚠️ **ISSUE PENDIENTE**: Encontrar root cause del patrón persistente de creación de dummies
