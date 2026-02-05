@@ -342,3 +342,110 @@ claude --plugin-dir ./my-plugin
 | Automatización garantizada | Hook |
 | Contexto aislado | Subagent o skill con `context: fork` |
 | Servicios externos | MCP server (o CLI si disponible) |
+
+---
+
+## Ejecución Híbrida (LLM + Scripts)
+
+Patrón avanzado donde un skill combina instrucciones para Claude con scripts ejecutables.
+
+### Estructura
+
+```
+my-skill/
+├── SKILL.md                    # Workflow + frontmatter
+├── scripts/
+│   ├── analyze.py              # Lógica determinista
+│   └── validate.sh             # Validaciones
+├── templates/
+│   └── output_template.md      # Templates de output
+└── references/
+    └── standards.md            # Conocimiento contextual
+```
+
+### Cómo funciona
+
+1. Claude lee SKILL.md y entiende el workflow
+2. Ejecuta scripts con `Bash` → output determinista
+3. Aplica comprensión contextual al output
+4. Genera resultado combinando ambos
+
+**Ventaja:** Scripts son deterministas (siempre mismo input → mismo output). Claude aporta comprensión y síntesis.
+
+### Ejemplo: smart-compact con script
+
+```yaml
+---
+name: smart-compact
+allowed-tools: Bash, Read
+---
+```
+
+El script `analyze_context.py` parsea el .jsonl de la sesión y extrae archivos modificados, tools usadas y errores. Claude toma esos datos y genera un `/compact` con contexto.
+
+---
+
+## Progressive Disclosure (Auto-invocación)
+
+1. Al iniciar sesión, Claude carga solo `name` + `description` de cada skill (~tokens mínimos)
+2. Cuando la conversación es relevante, Claude carga el SKILL.md completo
+3. Los scripts se ejecutan bajo demanda
+
+### Control de auto-invocación
+
+```yaml
+# Auto-carga cuando Claude detecta relevancia
+description: "Explica código con diagramas. Usa cuando pregunten 'cómo funciona esto'"
+disable-model-invocation: false  # default
+
+# Solo invocación manual con /deploy
+disable-model-invocation: true
+
+# Invisible al usuario, solo para Claude
+user-invocable: false
+```
+
+### Tips para descriptions
+
+| Vaga | Específica |
+|------|------------|
+| "Ayuda con código" | "Review TypeScript siguiendo estándares de seguridad" |
+| "Documentación" | "Genera API docs con JSDoc y OpenAPI specs" |
+
+---
+
+## Migración: Commands → Skills
+
+| Feature | Commands | Skills |
+|---------|----------|--------|
+| YAML frontmatter | Opcional | Recomendado |
+| Auto-invocación | No | Sí (por description) |
+| Archivos de soporte | No | Sí (scripts/, templates/) |
+| Ejecución híbrida | No | Sí |
+
+### Pasos
+
+1. Crear directorio: `~/.claude/skills/my-skill/`
+2. Mover contenido a `SKILL.md` con frontmatter YAML
+3. Añadir scripts si aplica
+4. Eliminar el .md de commands/
+
+### Agent Skills Open Standard (Oct 2025)
+
+Formato abierto que funciona en múltiples herramientas AI:
+- Carpeta con `SKILL.md` como entrypoint
+- YAML frontmatter (name, description, allowed-tools)
+- Markdown body con instrucciones
+- Archivos de soporte opcionales
+
+Claude Code extiende con: `context: fork`, `disable-model-invocation`, `allowed-tools`, `model`, `agent`.
+
+---
+
+## Best Practices para Skills
+
+1. **Narrow & deep > wide & shallow** - Un skill por tarea
+2. **Estructura > instrucciones** - Separar en archivos
+3. **Testear como código** - Inputs conocidos → outputs esperados
+4. **Seguridad** - Auditar scripts de terceros
+5. **SKILL.md enfocado** - Solo workflow, detalles en references/
