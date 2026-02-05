@@ -6,6 +6,7 @@
 |---------|--------|-------------|
 | `/clear` | Borra TODO el historial | No |
 | `/compact` | Comprime conversación | Parcial (resumen) |
+| "Summarize from here" | Compact parcial desde punto elegido | Parcial (selectivo) |
 | `Esc+Esc` o `/rewind` | Retrocede a checkpoint | Sí (selectivo) |
 | `/resume` | Picker de sesiones anteriores | - |
 | `claude --continue` | Retoma última sesión | - |
@@ -93,6 +94,38 @@ Al compactar, preservar siempre:
 
 ---
 
+## "Summarize from here" - Compact parcial (v2.1.32+)
+
+### Qué hace
+Comprime solo la conversación **posterior** al mensaje seleccionado, preservando intacto todo lo anterior. Es un `/compact` quirúrgico.
+
+### Cómo acceder
+1. Navega mensajes con **flechas arriba/abajo** (message selector)
+2. Selecciona el mensaje que será el punto de corte
+3. Elige **"Summarize from here"** en las opciones
+4. Opcionalmente escribe instrucciones de summarización (igual que `/compact`)
+
+### Comportamiento
+- Resume todo lo que está **después** del mensaje seleccionado
+- Si no hay nada después: `"Nothing to summarize after the selected message."`
+- Acepta instrucciones opcionales de summarización
+
+### Comparación
+
+| Feature | `/compact` | "Summarize from here" | `/smart-compact` (skill) |
+|---------|-----------|----------------------|--------------------------|
+| Scope | Toda la conversación | Desde punto seleccionado | Toda la conversación |
+| Control | Instrucciones opcionales | Punto de corte + instrucciones | Automático (preserva archivos, decisiones) |
+| Activación | Comando o auto-compact | Message selector (flechas) | Comando manual |
+| Preserva anterior | No (todo se resume) | Sí (solo resume posterior) | Parcial (prioriza lo importante) |
+
+### Cuándo usarlo
+- La parte inicial de la conversación tiene contexto crucial
+- Solo la "cola" es redundante o ruidosa
+- Quieres más control que `/compact` pero menos setup que `/smart-compact`
+
+---
+
 ## /resume y --continue - Retomar sesiones
 
 ### Desde dentro de Claude Code
@@ -124,19 +157,20 @@ Facilita encontrarlas después con `/resume`.
                     │  [msg1][msg2][msg3][msg4][msg5]     │
                     └─────────────────────────────────────┘
                                     │
-        ┌───────────────────────────┼───────────────────────────┐
-        ▼                           ▼                           ▼
-   ┌─────────┐                ┌──────────┐                ┌─────────┐
-   │ /clear  │                │ Esc+Esc  │                │/compact │
-   └─────────┘                └──────────┘                └─────────┘
-        │                           │                           │
-        ▼                           ▼                           ▼
-   ┌─────────┐                ┌──────────┐                ┌─────────┐
-   │ [vacío] │                │[msg1][2] │                │[resumen]│
-   │         │                │          │                │         │
-   └─────────┘                └──────────┘                └─────────┘
-   Todo borrado            Quirúrgico               Comprimido
-   No recuperable          Selectivo                Parcial
+     ┌──────────────┬───────────────┼──────────────┐
+     ▼              ▼               ▼              ▼
+┌─────────┐   ┌──────────┐   ┌─────────┐   ┌───────────┐
+│ /clear  │   │ Esc+Esc  │   │/compact │   │Summarize  │
+│         │   │          │   │         │   │from here  │
+└─────────┘   └──────────┘   └─────────┘   └───────────┘
+     │              │               │              │
+     ▼              ▼               ▼              ▼
+┌─────────┐   ┌──────────┐   ┌─────────┐   ┌───────────┐
+│ [vacío] │   │[msg1][2] │   │[resumen]│   │[1][2][res]│
+│         │   │          │   │         │   │           │
+└─────────┘   └──────────┘   └─────────┘   └───────────┘
+Todo borrado   Quirúrgico    Comprimido    Compact parcial
+No recuperable Selectivo     Todo          Desde punto elegido
 ```
 
 ---
