@@ -324,3 +324,177 @@ O via CLI:
 ```bash
 claude --disallowedTools "Task(Explore)"
 ```
+
+---
+
+## Agent Teams (experimental)
+
+Feature que permite coordinar múltiples instancias de Claude trabajando juntas en el mismo proyecto. A diferencia de subagents (que reportan al parent), los teammates se comunican **peer-to-peer**.
+
+### Teams vs Subagents
+
+| Aspecto | Subagents | Agent Teams |
+|---------|-----------|-------------|
+| Comunicación | Solo con parent | Peer-to-peer entre teammates |
+| Contexto | Propio, aislado | Propio, pero comparten task list |
+| Coordinación | Parent asigna y recibe | Lead coordina, teammates colaboran |
+| Visibilidad | Resultados al parent | Pueden ver trabajo de otros |
+| Uso típico | Tareas paralelas independientes | Investigación colaborativa, debates |
+
+### Setup
+
+**1. Habilitar flag experimental:**
+```json
+// ~/.claude/settings.json
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
+```
+
+**2. Display modes:**
+
+| Modo | Descripción | Cuándo usar |
+|------|-------------|-------------|
+| `auto` | tmux si disponible, sino in-process | Default |
+| `in-process` | Todo en un terminal, switch con shortcuts | Sin tmux |
+| `tmux` | Split panes, cada teammate visible | Ideal para observar |
+
+```json
+{
+  "teammateMode": "tmux"
+}
+```
+
+Override por sesión:
+```bash
+claude --teammate-mode tmux
+```
+
+**3. Instalar tmux** (para split-pane):
+```bash
+brew install tmux
+```
+
+iTerm2 alternativa: `brew install mkusaka/it2/it2` + habilitar Python API en iTerm2 settings.
+
+**4. Verificar**: `/config` → debe mostrar `Teammate mode`.
+
+### Crear un team
+
+Describir la tarea y dejar que Claude decida la estructura:
+```
+Create an agent team to refactor the authentication module.
+Break the work into parallel tasks.
+```
+
+O especificar teammates y modelos:
+```
+Create a team with 3 teammates:
+- One researcher using Haiku for quick lookups
+- One architect using Opus for design decisions
+- Two implementers using Sonnet for code changes
+```
+
+### Navegación
+
+**In-process mode:**
+- `Shift+Tab` → Ciclar entre teammates
+- Lead ve status de todos
+
+**Split-pane mode (tmux):**
+- Cada teammate en su propio pane
+- Navegación estándar de tmux
+
+### Features avanzados
+
+#### Delegate mode
+`Shift+Tab` para activar. Restringe al lead a **solo coordinación**:
+- NO puede editar archivos
+- NO puede ejecutar comandos
+- Solo asigna tareas y sintetiza resultados
+
+Útil cuando quieres que el lead no "haga el trabajo él mismo" en vez de delegar.
+
+#### Plan approval
+Teammates entran en modo read-only. Pueden investigar pero no modificar nada hasta que el lead aprueba su plan.
+
+```
+Spawn an architect teammate to refactor the database schema.
+Require plan approval before they make any changes.
+```
+
+Criterios de aprobación:
+```
+Only approve plans that include test coverage.
+Reject any plan that modifies the schema without a migration.
+```
+
+#### Modelos diferentes por teammate
+Optimizar costo/capacidad:
+- **Haiku** → research, búsquedas rápidas
+- **Sonnet** → implementación de código
+- **Opus** → decisiones arquitectónicas complejas
+
+#### Pre-aprobar permisos
+Los permission requests de teammates llegan al lead (fricción). Opciones:
+- `/permissions` → pre-aprobar operaciones comunes
+- `claude --dangerously-skip-permissions` → trust total (aplica a lead + todos los teammates)
+
+### Hooks relevantes (v2.1.33+)
+
+| Hook | Cuándo se dispara |
+|------|-------------------|
+| `TeammateIdle` | Un teammate termina y queda libre |
+| `TaskCompleted` | Una tarea asignada se completa |
+
+### Patrones de uso
+
+#### Debugging adversarial (swarm)
+Múltiples agents investigan teorías diferentes e intentan **desprobar** las de otros:
+```
+Spawn 5 teammates to investigate intermittent 500 errors:
+1. Database connection pool exhaustion
+2. Race condition in inventory reservation
+3. Payment API timeout handling
+4. Memory pressure / GC pauses
+5. Network issues between services
+
+Have them actively try to disprove each other's theories.
+```
+
+#### Code review paralelo
+Cada reviewer aplica una lente diferente:
+```
+3 reviewers for PR #142:
+- Security: vulnerabilities, injection, auth flaws
+- Performance: bottlenecks, N+1 queries, memory
+- Tests: edge cases, coverage, test quality
+```
+
+#### Feature building paralelo
+Cada teammate es dueño de archivos independientes:
+```
+Notification system:
+- Teammate 1: Backend API endpoints
+- Teammate 2: Database schema + migrations
+- Teammate 3: React components
+- Teammate 4: WebSocket integration
+- Teammate 5: Integration tests
+```
+
+### Cuándo NO usar Agent Teams
+
+| Situación | Por qué no | Alternativa |
+|-----------|------------|-------------|
+| Dependencias secuenciales | Step B espera step A → no hay paralelismo | Single session |
+| Ediciones al mismo archivo | Overwrites y conflictos | Single session o dividir archivo |
+| Tareas simples | Overhead de coordinación > beneficio | Single agent o subagent |
+| Presupuesto limitado | 5 agents ≈ 5x tokens | Subagents (más económicos) |
+
+### Costos
+
+Cada teammate tiene su propio context window → token usage escala linealmente con team size. Un team de 5 usa ~5x los tokens de una sesión individual.
+
+Fuente: [Claude Code Agent Teams](https://generativeai.pub/i-tried-new-claude-code-agent-teams-and-discovered-new-way-to-swarm-45fbb61ed70b) (Joe Njenga)
