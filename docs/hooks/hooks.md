@@ -423,3 +423,87 @@ Valores de `permissionDecision`:
 | Naturaleza | Advisory (sugerencia) | Determinístico (siempre ejecuta) |
 | Cumplimiento | Claude puede ignorar | Garantizado |
 | Uso | Preferencias, estilo | Reglas estrictas, automatización |
+
+---
+
+## Tips avanzados (lecciones aprendidas)
+
+### Exit code 2: stderr como guía para Claude
+
+Cuando un hook devuelve `exit 2`, el stderr no solo bloquea -- **Claude lo lee y ajusta su approach**. Esto convierte el bloqueo en orientación:
+
+```bash
+# Malo: bloquea sin contexto útil
+echo "Error: Validation failed" >&2
+exit 2
+
+# Bueno: guía a Claude sobre qué hacer
+cat >&2 <<'MSG'
+ERROR: Cannot modify production database config.
+To proceed:
+1. Create a migration file instead
+2. Get review from @database-team
+3. Use --dry-run flag first
+MSG
+exit 2
+```
+
+### Matcher vacío para descubrir tool names
+
+Usar `""` como matcher captura TODOS los tools. Útil para debug:
+
+```json
+{
+  "PreToolUse": [{
+    "matcher": "",
+    "hooks": [{"type": "command", "command": "echo \"Tool: $CLAUDE_TOOL_NAME\" >> /tmp/tools.log"}]
+  }]
+}
+```
+
+Después revisar `/tmp/tools.log` para ver nombres exactos (case-sensitive).
+
+### Project settings sobreescriben global (no se mezclan)
+
+- `~/.claude/settings.json` → global
+- `.claude/settings.json` → proyecto
+
+**Los hooks de proyecto sobreescriben completamente los globales.** No hay merge. Si defines hooks a nivel proyecto, los globales no se ejecutan.
+
+Implicación: si necesitas hooks globales + proyecto, debes duplicar los globales en el settings del proyecto.
+
+### Stop hook para notificaciones
+
+Hook simple pero útil para tareas largas:
+
+```json
+{
+  "Stop": [{
+    "hooks": [{"type": "command", "command": "afplay /System/Library/Sounds/Glass.aiff"}]
+  }]
+}
+```
+
+### Tiers recomendados de implementación
+
+| Tier | Hooks | Tiempo setup |
+|------|-------|-------------|
+| Essential | PostToolUse (format), Stop (notify), PreToolUse (safety) | 15 min |
+| Power User | PostToolUse (auto-test), SessionStart (context), UserPromptSubmit (validation) | 1 hora |
+| Pro | Audit logging en todos los eventos (SOC2/HIPAA) | 2+ horas |
+
+### Nuestro setup actual
+
+| Evento | Hook | Propósito |
+|--------|------|-----------|
+| `PostToolUse` | `check-new-dir.sh` | Detecta nuevos directorios creados |
+| `UserPromptSubmit` | `token-warning.sh` | Aviso de consumo de tokens |
+| `PreCompact` | `pre-compact-backup.sh` | Backup antes de compactar contexto |
+| `SessionEnd` | `session-end-summary.sh` | Resumen de sesión + limpieza transcript |
+
+**No implementados** (considerar):
+- `Stop` → notificación sonora para tareas largas
+- `PreToolUse` con `exit 2` → safety gates para archivos sensibles
+- `SessionStart` → carga automática de contexto (git status, issues)
+
+Fuente: [Production-Ready Claude Code Hooks Guide](https://dev.to/reza_rezvani/the-production-ready-claude-code-hooks-guide-7-hooks-that-actually-matter-o8o) (Reza Rezvani)
